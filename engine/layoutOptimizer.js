@@ -70,46 +70,60 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
   function evalCornerFitReclaim(pieceL, pieceW, cutL, cutW) {
     var usableL = Math.max(0, pieceL - 2 * marginIn);
     var usableW = Math.max(0, pieceW - 2 * marginIn);
-    var rows = cutL > 0 ? Math.floor((usableL + 2 * overlapIn) / cutL) : 0;
-    var cols = cutW > 0 ? Math.floor((usableW + 2 * overlapIn) / cutW) : 0;
     var usableL_eff = usableL + 2 * overlapIn;
     var usableW_eff = usableW + 2 * overlapIn;
+    var rows = cutL > 0 ? Math.floor(usableL_eff / cutL) : 0;
+    var cols = cutW > 0 ? Math.floor(usableW_eff / cutW) : 0;
     var leftoverL = usableL_eff - rows * cutL;
     var leftoverW = usableW_eff - cols * cutW;
     var reclaimed = 0, rotAdditions = 0, rotColCount = 0, rotRowCount = 0;
     var addedRows = 0, addedCols = 0;
+    var cornerTagL = 0, cornerTagW = 0;
     var extensionL = 0, extensionW = 0;
 
     if (isHandFeed) {
-      var pocketOK = false;
-      if (leftoverL >= cutW && leftoverW >= cutL) {
-        pocketOK = true;
-      } else if (leftoverL >= cutL && leftoverW >= cutW) {
-        pocketOK = true;
-      }
-      if (!pocketOK) {
-        var needL4rot = Math.max(0, cutW - leftoverL);
-        var needW4rot = Math.max(0, cutL - leftoverW);
-        var needL4norm = Math.max(0, cutL - leftoverL);
-        var needW4norm = Math.max(0, cutW - leftoverW);
-        if (needL4rot <= marginIn && needW4rot <= marginIn) {
-          extensionL = needL4rot;
-          extensionW = needW4rot;
-          pocketOK = true;
-        } else if (needL4norm <= marginIn && needW4norm <= marginIn) {
-          extensionL = needL4norm;
-          extensionW = needW4norm;
-          pocketOK = true;
+      // Check if 1 tag fits in the corner pocket (leftoverL × leftoverW) in either orientation.
+      // Try rotated orientation first (tag placed as cutW × cutL — i.e. short side along L, long side along W).
+      // Then try normal orientation (tag as cutL × cutW — same as main grid).
+      var fitsRotated = leftoverL >= cutW - 0.001 && leftoverW >= cutL - 0.001;
+      var fitsNormal  = leftoverL >= cutL - 0.001 && leftoverW >= cutW - 0.001;
+
+      if (!fitsRotated && !fitsNormal) {
+        // Check if a small piece extension (within marginIn slack) makes it fit
+        var needL_rot  = Math.max(0, cutW - leftoverL);
+        var needW_rot  = Math.max(0, cutL - leftoverW);
+        var needL_norm = Math.max(0, cutL - leftoverL);
+        var needW_norm = Math.max(0, cutW - leftoverW);
+
+        if (needL_rot <= marginIn && needW_rot <= marginIn) {
+          extensionL = needL_rot;
+          extensionW = needW_rot;
+          fitsRotated = true;
+        } else if (needL_norm <= marginIn && needW_norm <= marginIn) {
+          extensionL = needL_norm;
+          extensionW = needW_norm;
+          fitsNormal = true;
         }
       }
-      if (pocketOK) {
+
+      if (fitsRotated || fitsNormal) {
+        // Pick orientation with smaller extension; prefer rotated on a tie
+        if (fitsRotated) {
+          cornerTagL = cutW; // rotated: tag's W dimension placed along the piece's L axis
+          cornerTagW = cutL; // rotated: tag's L dimension placed along the piece's W axis
+        } else {
+          cornerTagL = cutL;
+          cornerTagW = cutW;
+          extensionL = Math.max(0, cutL - leftoverL);
+          extensionW = Math.max(0, cutW - leftoverW);
+        }
         reclaimed = 1;
         rotAdditions = 1;
-        rotColCount = 1;
+        rotColCount = 1; // use rotColCount=1 to signal 1 corner tag
       }
     }
-    try { console.log('[RECLAIM-CORNER] ' + (isHandFeed ? 'HAND' : 'OFFSET') + ' piece ' + lpFmt(pieceL) + 'x' + lpFmt(pieceW) + ' cut ' + lpFmt(cutL) + 'x' + lpFmt(cutW) + ' rows=' + rows + ' cols=' + cols + ' leftover ' + lpFmt(leftoverL) + 'x' + lpFmt(leftoverW) + ' extension ' + lpFmt(extensionL) + 'x' + lpFmt(extensionW) + ' reclaimed=' + reclaimed); } catch(e) {}
-    return { rows: rows, cols: cols, total: rows * cols, reclaimed: reclaimed, addedRows: addedRows, addedCols: addedCols, rotAdditions: rotAdditions, rotColCount: rotColCount, rotRowCount: rotRowCount, leftoverL: leftoverL, leftoverW: leftoverW };
+    try { console.log('[RECLAIM-CORNER] ' + (isHandFeed ? 'HAND' : 'OFFSET') + ' piece ' + lpFmt(pieceL) + 'x' + lpFmt(pieceW) + ' cut ' + lpFmt(cutL) + 'x' + lpFmt(cutW) + ' rows=' + rows + ' cols=' + cols + ' leftover ' + lpFmt(leftoverL) + 'x' + lpFmt(leftoverW) + ' ext ' + lpFmt(extensionL) + 'x' + lpFmt(extensionW) + ' reclaimed=' + reclaimed + (reclaimed > 0 ? ' cornerTag=' + lpFmt(cornerTagL) + 'x' + lpFmt(cornerTagW) : '')); } catch(e) {}
+    return { rows: rows, cols: cols, total: rows * cols, reclaimed: reclaimed, addedRows: addedRows, addedCols: addedCols, rotAdditions: rotAdditions, rotColCount: rotColCount, rotRowCount: rotRowCount, leftoverL: leftoverL, leftoverW: leftoverW, cornerTagL: cornerTagL, cornerTagW: cornerTagW, extensionL: extensionL, extensionW: extensionW };
   }
 
   var orientations = [
@@ -156,22 +170,32 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           var gridW = evResult.cols > 0 ? evResult.cols * ori.cutW - 2 * overlapIn : 0;
 
           var isCornerFit = strategy === 'corner-fit';
-          var recClaimL = (rotRowCount > 0) ? ori.cutW : 0;
-          var recClaimW = (rotColCount > 0) ? ori.cutW : 0;
-          var recClaimL_corner = isCornerFit ? ori.cutL : 0;
+          // Corner-fit: reclaim a single tag in the bottom-right pocket; extends BOTH L and W
+          var cTagL = (isCornerFit && evResult.cornerTagL > 0) ? evResult.cornerTagL : 0;
+          var cTagW = (isCornerFit && evResult.cornerTagW > 0) ? evResult.cornerTagW : 0;
+
+          // Strip reclaim extension geometry (only one axis at a time)
+          var recClaimL_strip = (rotRowCount > 0) ? ori.cutW : 0;   // right strip extends L
+          var recClaimW_strip = (rotColCount > 0 && !isCornerFit) ? ori.cutW : 0; // bottom strip extends W
 
           var firstTagL = marginIn + Math.max(0, (usableL - gridL) / 2);
           var lastTagEndL = firstTagL + gridL;
-          var extPL = Math.max(pL, lastTagEndL + Math.max(recClaimL, recClaimL_corner) + marginIn);
-
           var firstTagW = marginIn + Math.max(0, (usableW - gridW) / 2);
           var lastTagEndW = firstTagW + gridW;
-          var extPW = Math.max(pW, lastTagEndW + recClaimW + marginIn);
 
+          // For corner-fit: piece must reach (lastTagEndL + cornerTagL + margin) in L and (lastTagEndW + cornerTagW + margin) in W
+          var extPL = isCornerFit
+            ? Math.max(pL, lastTagEndL + cTagL + marginIn)
+            : Math.max(pL, lastTagEndL + recClaimL_strip + marginIn);
+          var extPW = isCornerFit
+            ? Math.max(pW, lastTagEndW + cTagW + marginIn)
+            : Math.max(pW, lastTagEndW + recClaimW_strip + marginIn);
+
+          // Incremental per-piece sheet-fit validation along L (columns of pieces)
           var validRotRowCount = 0;
           var totalL = 0;
           for (var c = 0; c < mi; c++) {
-            var trialExtPL = (c < rotRowCount) ? extPL : pL;
+            var trialExtPL = (c < rotRowCount || (isCornerFit && c < 1 && cTagL > 0)) ? extPL : pL;
             if (totalL + trialExtPL <= sheetL + 0.01) {
               totalL += trialExtPL;
               if (c < rotRowCount) validRotRowCount++;
@@ -180,10 +204,11 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
             }
           }
 
+          // Incremental per-piece sheet-fit validation along W (rows of pieces)
           var validRotColCount = 0;
           var totalW = 0;
           for (var r = 0; r < ni; r++) {
-            var trialExtPW = (r < rotColCount) ? extPW : pW;
+            var trialExtPW = (r < rotColCount || (isCornerFit && r < 1 && cTagW > 0)) ? extPW : pW;
             if (totalW + trialExtPW <= sheetW + 0.01) {
               totalW += trialExtPW;
               if (r < rotColCount) validRotColCount++;
@@ -192,11 +217,17 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
             }
           }
 
+          // Hard sheet boundary check — reject if nominal total exceeds sheet in either axis
           if (totalL > sheetL + 0.01 || totalW > sheetW + 0.01) {
+            try { console.log('[RECLAIM-REJECT] ' + strategy + ' piece ' + lpFmt(pL) + 'x' + lpFmt(pW) + ' totalL=' + lpFmt(totalL) + '/' + lpFmt(sheetL) + ' totalW=' + lpFmt(totalW) + '/' + lpFmt(sheetW)); } catch(e) {}
             return;
           }
 
-          var validatedReclaimed = validRotRowCount + validRotColCount;
+          // For corner-fit: validatedReclaimed = 1 per piece if the pocket fits, else 0
+          var cornerFitValid = isCornerFit && cTagL > 0 && totalL <= sheetL + 0.01 && totalW <= sheetW + 0.01;
+
+          var cornerReclaimed = cornerFitValid ? 1 : 0;
+          var validatedReclaimed = isCornerFit ? cornerReclaimed : (validRotRowCount + validRotColCount);
           var finalStrategy = (validatedReclaimed > 0) ? strategy : 'none';
           var effectiveTagsPerPiece = tagsPerPiece + validatedReclaimed;
           var totalTags = effectiveTagsPerPiece * totalPieces;
@@ -215,6 +246,11 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           var balanceScore = Math.min(evResult.rows, evResult.cols) > 0
             ? Math.round((Math.min(evResult.rows, evResult.cols) / Math.max(evResult.rows, evResult.cols)) * 100)
             : 0;
+
+          // For corner-fit, reclaimed count and strip counts stored separately
+          var outRotColCount = isCornerFit ? 0 : validRotColCount;
+          var outRotRowCount = isCornerFit ? 0 : validRotRowCount;
+          var outCornerCount = cornerFitValid ? 1 : 0;
 
           candidates.push({
             TL: tagL, TW: tagW,
@@ -236,7 +272,10 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
             optimization: {
               baseTags: tagsPerPiece,
               addedRows: evResult.addedRows, addedCols: evResult.addedCols,
-              rotAdditions: validatedReclaimed, rotColCount: validRotColCount, rotRowCount: validRotRowCount,
+              rotAdditions: validatedReclaimed, rotColCount: outRotColCount, rotRowCount: outRotRowCount,
+              cornerCount: outCornerCount,
+              cornerTagL: isCornerFit ? (evResult.cornerTagL || 0) : 0,
+              cornerTagW: isCornerFit ? (evResult.cornerTagW || 0) : 0,
               finalTags: effectiveTagsPerPiece,
               mainRows: evResult.rows, mainCols: evResult.cols,
               renderRows: evResult.rows, renderCols: evResult.cols,
@@ -253,14 +292,9 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
 
         if (isHandFeed) {
           var cf = evalCornerFitReclaim(pL, pW, ori.cutL, ori.cutW);
-          if (cf.reclaimed !== ev.reclaimed && cf.reclaimed > 0) {
+          // Always generate a separate corner-fit candidate when the pocket fits
+          if (cf.reclaimed > 0) {
             pushCandidate(cf, 'corner-fit');
-          } else if (ev.reclaimed > 0) {
-            // also try even when reclaimed matches — corner-fit may have different leftover display
-            var isDiff = cf.rotAdditions !== ev.rotAdditions || cf.rotColCount !== ev.rotColCount || cf.rotRowCount !== ev.rotRowCount;
-            if (isDiff) {
-              pushCandidate(cf, 'corner-fit');
-            }
           }
         }
       }
