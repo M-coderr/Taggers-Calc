@@ -35,13 +35,15 @@ function computeCosts(layout, params) {
     : r.autoPiecesPerSheet;
 
   var invariantTagsPerPiece = (r.tagsRows || 0) * (r.tagsCols || 0);
+  var reclaimedTagsPerPiece = (r.optimization && r.optimization.reclaimedTags) || 0;
   if (r.tagsRows <= 0 || r.tagsCols <= 0) {
     invariantTagsPerPiece = 0;
   }
+  var effectiveTagsPerPiece = invariantTagsPerPiece + reclaimedTagsPerPiece;
   var tagsPerSheet = r.totalTagsPerSheet || 0;
-  var expectedTagsPerSheet = invariantTagsPerPiece * (r.totalPieces || piecesPerSheet || 1);
+  var expectedTagsPerSheet = effectiveTagsPerPiece * (r.totalPieces || piecesPerSheet || 1);
   if (tagsPerSheet > 0 && expectedTagsPerSheet > 0 && tagsPerSheet !== expectedTagsPerSheet) {
-    try { console.warn('COST ENGINE INVARIANT: totalTagsPerSheet(' + tagsPerSheet + ') !== tagsRows*tagsCols*totalPieces(' + invariantTagsPerPiece + '*' + (r.totalPieces || piecesPerSheet || 1) + ' = ' + expectedTagsPerSheet + ')'); } catch(e) {}
+    try { console.warn('COST ENGINE INVARIANT: totalTagsPerSheet(' + tagsPerSheet + ') !== effectiveTagsPerPiece*totalPieces(' + invariantTagsPerPiece + '+' + reclaimedTagsPerPiece + '*' + (r.totalPieces || piecesPerSheet || 1) + ' = ' + expectedTagsPerSheet + ')'); } catch(e) {}
   }
   if (invariantTagsPerPiece === 0) {
     tagsPerSheet = 0;

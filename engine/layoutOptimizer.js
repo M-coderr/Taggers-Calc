@@ -40,7 +40,26 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
     var usableW = Math.max(0, pieceW - 2 * marginIn);
     var rows = cutL > 0 ? Math.floor((usableL + 2 * overlapIn) / cutL) : 0;
     var cols = cutW > 0 ? Math.floor((usableW + 2 * overlapIn) / cutW) : 0;
-    return { rows: rows, cols: cols, total: rows * cols };
+    var usableL_eff = usableL + 2 * overlapIn;
+    var usableW_eff = usableW + 2 * overlapIn;
+    var leftoverL = usableL_eff - rows * cutL;
+    var leftoverW = usableW_eff - cols * cutW;
+    var reclaimed = 0, rotAdditions = 0, rotColCount = 0, rotRowCount = 0;
+    var addedRows = 0, addedCols = 0;
+    if (leftoverL >= cutW) {
+      rotColCount = Math.floor(usableW_eff / cutL);
+      reclaimed += rotColCount;
+      rotAdditions += rotColCount;
+    }
+    if (leftoverW >= cutL) {
+      var availH = rotColCount > 0 ? rows * cutL : usableL_eff;
+      if (availH >= cutW) {
+        rotRowCount = Math.floor(availH / cutW);
+        reclaimed += rotRowCount;
+        rotAdditions += rotRowCount;
+      }
+    }
+    return { rows: rows, cols: cols, total: rows * cols, reclaimed: reclaimed, addedRows: addedRows, addedCols: addedCols, rotAdditions: rotAdditions, rotColCount: rotColCount, rotRowCount: rotRowCount, leftoverL: leftoverL, leftoverW: leftoverW };
   }
 
   var orientations = [
@@ -76,7 +95,8 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
         var totalPieces = ni * mi;
         var tagsPerPiece = ev.rows * ev.cols;
         if (tagsPerPiece !== ev.total) throw new Error('INVARIANT: tagsPerPiece(' + tagsPerPiece + ') !== ev.total(' + ev.total + ')');
-        var totalTags = tagsPerPiece * totalPieces;
+        var effectiveTagsPerPiece = tagsPerPiece + ev.reclaimed;
+        var totalTags = effectiveTagsPerPiece * totalPieces;
         if (totalTags < 1) continue;
 
         var sheetArea = sheetL * sheetW;
@@ -100,8 +120,8 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           tagsRows: ev.rows, tagsCols: ev.cols,
           tagsPerPieceNominal: tagsPerPiece,
           totalTagsPerSheet: totalTags,
-          reclaimedTags: 0,
-          leftoverL: 0, leftoverW: 0,
+          reclaimedTags: ev.reclaimed * totalPieces,
+          leftoverL: ev.leftoverL, leftoverW: ev.leftoverW,
           totalPieces: totalPieces,
           sheetsNeeded: sheetsNeeded,
           wastePct: Math.min(100, wastePct),
@@ -112,15 +132,15 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           balanceScore: balanceScore,
           optimization: {
             baseTags: tagsPerPiece,
-            addedRows: 0, addedCols: 0,
-            rotAdditions: 0, rotColCount: 0, rotRowCount: 0,
-            finalTags: tagsPerPiece,
+            addedRows: ev.addedRows, addedCols: ev.addedCols,
+            rotAdditions: ev.rotAdditions, rotColCount: ev.rotColCount, rotRowCount: ev.rotRowCount,
+            finalTags: effectiveTagsPerPiece,
             mainRows: ev.rows, mainCols: ev.cols,
             renderRows: ev.rows, renderCols: ev.cols,
             balanceScore: balanceScore,
-            hasExtra: false,
+            hasExtra: ev.reclaimed > 0,
             isTagRotated: ori.label === 'rotated',
-            reclaimedTags: 0,
+            reclaimedTags: ev.reclaimed,
           },
         });
       }
@@ -134,15 +154,15 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
       if (fitsFeed(pL, pW) && meetsMinHandSize(pL, pW)) {
         var ev = evalLayout(pL, pW, tagCutL, tagCutW);
         if (ev.rows >= 1 && ev.cols >= 1) {
-          var fTags = ev.total;
+          var fTags = ev.total + ev.reclaimed;
           candidates.push({
             TL: tagL, TW: tagW, n: 1, m: 1,
             pieceL: pL, pieceW: pW,
             tagsRows: ev.rows, tagsCols: ev.cols,
-            tagsPerPieceNominal: fTags,
+            tagsPerPieceNominal: ev.total,
             totalTagsPerSheet: fTags,
-            reclaimedTags: 0,
-            leftoverL: 0, leftoverW: 0, totalPieces: 1,
+            reclaimedTags: ev.reclaimed,
+            leftoverL: ev.leftoverL, leftoverW: ev.leftoverW, totalPieces: 1,
             sheetsNeeded: orderQty > 0 ? Math.ceil(orderQty / fTags) : 0,
             wastePct: Math.max(0, 100 - Math.min(100, fTags * tagCutL * tagCutW / (sheetL * sheetW) * 100)),
             utilization: Math.min(100, fTags * tagCutL * tagCutW / (sheetL * sheetW) * 100),
@@ -151,13 +171,13 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
             pieceDesc: lpFmt(pL) + 'x' + lpFmt(pW),
             balanceScore: 100,
             optimization: {
-              baseTags: fTags, addedRows: 0, addedCols: 0,
-              rotAdditions: 0, rotColCount: 0, rotRowCount: 0,
+              baseTags: ev.total, addedRows: ev.addedRows, addedCols: ev.addedCols,
+              rotAdditions: ev.rotAdditions, rotColCount: ev.rotColCount, rotRowCount: ev.rotRowCount,
               finalTags: fTags, mainRows: ev.rows, mainCols: ev.cols,
               renderRows: ev.rows, renderCols: ev.cols,
-              balanceScore: 100, hasExtra: false,
+              balanceScore: 100, hasExtra: ev.reclaimed > 0,
               isTagRotated: false,
-              reclaimedTags: 0,
+              reclaimedTags: ev.reclaimed,
             },
           });
         }

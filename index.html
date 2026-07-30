@@ -168,8 +168,9 @@ function LayoutPreview(props) {
   var svgTC = pitchDW > 0 ? Math.floor((usableDW + 2 * overlap) / pitchDW) : 0;
 
   var svgTagsPerPiece = svgTR * svgTC;
-  if (valid && optTagsPerPiece > 0 && svgTagsPerPiece !== optTagsPerPiece) {
-    try { console.warn('LAYOUT MISMATCH: SVG drawn tags/piece (' + svgTagsPerPiece + ' = ' + svgTR + 'x' + svgTC + ') !== reported tags/piece (' + optTagsPerPiece + '). Piece: ' + lpFmt(pL) + 'x' + lpFmt(pW) + ' Tag: ' + lpFmt(tL) + 'x' + lpFmt(tW) + ' Overlap: ' + lpFmt(overlap) + ' Margin: ' + lpFmt(margin)); } catch(e) {}
+  var effectiveReported = optTagsPerPiece - rotAdditions;
+  if (valid && effectiveReported > 0 && svgTagsPerPiece !== effectiveReported) {
+    try { console.warn('LAYOUT MISMATCH: SVG drawn tags/piece (' + svgTagsPerPiece + ' = ' + svgTR + 'x' + svgTC + ') !== reported base tags/piece (' + effectiveReported + '). Piece: ' + lpFmt(pL) + 'x' + lpFmt(pW) + ' Tag: ' + lpFmt(tL) + 'x' + lpFmt(tW) + ' Overlap: ' + lpFmt(overlap) + ' Margin: ' + lpFmt(margin)); } catch(e) {}
   }
 
   var geo = React.useMemo(function() {
