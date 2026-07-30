@@ -134,6 +134,8 @@ function LayoutPreview(props) {
   var renderTC = Math.max(1, Number(props.renderTagsDown) || tC);
   var optTagsPerPiece = Number(props.optimizedTagsPerPiece) || tR * tC;
   var rotAdditions = Number(props.rotAdditions) || 0;
+  var rotColCount = Number(props.rotColCount) || 0;
+  var rotRowCount = Number(props.rotRowCount) || 0;
   var totalSheets = props.totalSheets || 0;
 
   var valid = sL > 0 && sW > 0 && pL > 0 && pW > 0;
@@ -167,10 +169,9 @@ function LayoutPreview(props) {
   var svgTR = pitchDL > 0 ? Math.floor((usableDL + 2 * overlap) / pitchDL) : 0;
   var svgTC = pitchDW > 0 ? Math.floor((usableDW + 2 * overlap) / pitchDW) : 0;
 
-  var svgTagsPerPiece = svgTR * svgTC;
-  var effectiveReported = optTagsPerPiece - rotAdditions;
-  if (valid && effectiveReported > 0 && svgTagsPerPiece !== effectiveReported) {
-    try { console.warn('LAYOUT MISMATCH: SVG drawn tags/piece (' + svgTagsPerPiece + ' = ' + svgTR + 'x' + svgTC + ') !== reported base tags/piece (' + effectiveReported + '). Piece: ' + lpFmt(pL) + 'x' + lpFmt(pW) + ' Tag: ' + lpFmt(tL) + 'x' + lpFmt(tW) + ' Overlap: ' + lpFmt(overlap) + ' Margin: ' + lpFmt(margin)); } catch(e) {}
+  var svgDrawnPerPiece = svgTR * svgTC + rotColCount + rotRowCount;
+  if (valid && optTagsPerPiece > 0 && svgDrawnPerPiece !== optTagsPerPiece) {
+    try { console.warn('LAYOUT MISMATCH: SVG drawn tags/piece (' + svgDrawnPerPiece + ' = main ' + svgTR + 'x' + svgTC + ' + reclaimed ' + rotColCount + '+' + rotRowCount + ') !== reported tags/piece (' + optTagsPerPiece + '). Piece: ' + lpFmt(pL) + 'x' + lpFmt(pW) + ' Tag: ' + lpFmt(tL) + 'x' + lpFmt(tW) + ' Overlap: ' + lpFmt(overlap) + ' Margin: ' + lpFmt(margin)); } catch(e) {}
   }
 
   var geo = React.useMemo(function() {
@@ -275,39 +276,78 @@ function LayoutPreview(props) {
                   var bottomStrip = Math.max(0, py + ph - lastTagEndY);
 
                   var tagIdBase = (row * dN + col) * svgTR * svgTC;
+
+                  var hasBtmRm = !simpleMode && rotColCount > 0;
+                  var btmReclaimH = hasBtmRm ? rotColCount : 0;
+                  var hasRgtRm = !simpleMode && rotRowCount > 0;
+                  var rgtReclaimN = hasRgtRm ? rotRowCount : 0;
+
                   return (
                     <g key={"p" + row + "-" + col}>
                       <rect x={px} y={py} width={pw} height={ph} fill="none" stroke="#999" strokeWidth={geo.swT} />
                       {!simpleMode && <>
-                      {rightStrip > 0.5 && <rect x={lastTagEndX} y={firstTagY} width={rightStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
+                      {rightStrip > 0.5 && !hasRgtRm && <rect x={lastTagEndX} y={firstTagY} width={rightStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
                       {leftStrip > 0.5 && <rect x={px} y={firstTagY} width={leftStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
-                      {bottomStrip > 0.5 && <rect x={firstTagX} y={lastTagEndY} width={gridW} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
+                      {bottomStrip > 0.5 && !hasBtmRm && <rect x={firstTagX} y={lastTagEndY} width={gridW} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
                       {topStrip > 0.5 && <rect x={firstTagX} y={py} width={gridW} height={topStrip} fill="url(#lp-hatch)" stroke="none" />}
                       {leftStrip > 0.5 && topStrip > 0.5 && <rect x={px} y={py} width={leftStrip} height={topStrip} fill="url(#lp-hatch)" stroke="none" />}
                       {rightStrip > 0.5 && topStrip > 0.5 && <rect x={lastTagEndX} y={py} width={rightStrip} height={topStrip} fill="url(#lp-hatch)" stroke="none" />}
-                      {leftStrip > 0.5 && bottomStrip > 0.5 && <rect x={px} y={lastTagEndY} width={leftStrip} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
-                      {rightStrip > 0.5 && bottomStrip > 0.5 && <rect x={lastTagEndX} y={lastTagEndY} width={rightStrip} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
-                      </>}}
+                      {leftStrip > 0.5 && bottomStrip > 0.5 && !hasBtmRm && <rect x={px} y={lastTagEndY} width={leftStrip} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
+                      {rightStrip > 0.5 && bottomStrip > 0.5 && !hasBtmRm && <rect x={lastTagEndX} y={lastTagEndY} width={rightStrip} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
+                      </>}
                       {simpleMode ? (
                         <g>
-                          {svgTC * svgTR > 1 && <text x={px + pw / 2} y={py + ph / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.max(6, Math.min(10, sc * 0.5))} fill="#888" fontFamily="'Courier New',monospace">{svgTC * svgTR} tags</text>}
+                          {svgTC * svgTR + btmReclaimH + rgtReclaimN > 1 && <text x={px + pw / 2} y={py + ph / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.max(6, Math.min(10, sc * 0.5))} fill="#888" fontFamily="'Courier New',monospace">{svgTC * svgTR + btmReclaimH + rgtReclaimN} tags</text>}
                         </g>
                       ) : (
-                      Array.from({ length: svgTC }).map(function(_, tr) {
-                        return Array.from({ length: svgTR }).map(function(_, tc) {
-                          var tx = firstTagX + tc * pitchX;
-                          var ty = firstTagY + tr * pitchY;
-                          var tagNum = tagIdBase + tr * svgTR + tc + 1;
-                          var tagId = "T" + String(tagNum);
-                          var showId = tw > 14 && th > 10;
-                          var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
+                      <g>
+                        {Array.from({ length: svgTC }).map(function(_, tr) {
+                          return Array.from({ length: svgTR }).map(function(_, tc) {
+                            var tx = firstTagX + tc * pitchX;
+                            var ty = firstTagY + tr * pitchY;
+                            var tagNum = tagIdBase + tr * svgTR + tc + 1;
+                            var tagId = "T" + String(tagNum);
+                            var showId = tw > 14 && th > 10;
+                            var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
+                            return (
+                              <g key={"t" + row + "-" + col + "-" + tr + "-" + tc}>
+                                {renderTagShape({
+                                  x: tx, y: ty, w: tw, h: th, sc: sc,
+                                  style: TAG_STYLE, layers: L,
+                                  id: tagId, showId: showId, idFontSize: idFontSize,
+                                })}
+                              </g>
+                            );
+                          });
+                        })}
+                        {btmReclaimH > 0 && Array.from({ length: btmReclaimH }).map(function(_, i) {
+                          var rcx = firstTagX + i * (th + 2 * overlapSvg);
+                          var rcy = lastTagEndY;
+                          var showR = th > 10 && tw > 8;
                           return (
-                            <g key={"t" + row + "-" + col + "-" + tr + "-" + tc}>
-                              {renderTagShape({
-                                x: tx, y: ty, w: tw, h: th, sc: sc,
-                                style: TAG_STYLE, layers: L,
-                                id: tagId, showId: showId, idFontSize: idFontSize,
-                              })}
+                            <g key={"rb-" + row + "-" + col + "-" + i}>
+                              <rect x={rcx} y={rcy} width={th} height={tw} rx="2" fill="#e8f4fd" stroke="#2980b9" strokeWidth="1.6" strokeDasharray="4,3" />
+                              {showR && <text x={rcx + th/2} y={rcy + tw/2 + 1} textAnchor="middle" fontSize="7" fontWeight="700" fill="#2980b9">R</text>}
+                            </g>
+                          );
+                        })}
+                        {rgtReclaimN > 0 && Array.from({ length: rgtReclaimN }).map(function(_, i) {
+                          var rcx = lastTagEndX;
+                          var rcy = firstTagY + i * (tw + 2 * overlapSvg);
+                          var showR = th > 10 && tw > 8;
+                          return (
+                            <g key={"rr-" + row + "-" + col + "-" + i}>
+                              <rect x={rcx} y={rcy} width={th} height={tw} rx="2" fill="#e8f4fd" stroke="#2980b9" strokeWidth="1.6" strokeDasharray="4,3" />
+                              {showR && <text x={rcx + th/2} y={rcy + tw/2 + 1} textAnchor="middle" fontSize="7" fontWeight="700" fill="#2980b9">R</text>}
+                            </g>
+                          );
+                        })}
+                      </g>
+                      )}
+                    </g>
+                  );
+                });
+              })}
                             </g>
                           );
                         });
@@ -1135,6 +1175,8 @@ function TagCostingCalculator() {
                   renderTagsDown={selectedC && selectedC.optimization ? selectedC.optimization.renderRows : calc.tagsRows}
                   optimizedTagsPerPiece={selectedC && selectedC.optimization ? selectedC.optimization.finalTags : calc.tagsRows * calc.tagsCols}
                   rotAdditions={selectedC && selectedC.optimization ? selectedC.optimization.rotAdditions : 0}
+                  rotColCount={selectedC && selectedC.optimization ? selectedC.optimization.rotColCount : 0}
+                  rotRowCount={selectedC && selectedC.optimization ? selectedC.optimization.rotRowCount : 0}
                   overlap={calc.overlapIn} margin={calc.marginIn}
                   tagRotated={selectedC && selectedC.optimization ? selectedC.optimization.isTagRotated : false}
                   orientation={calc.isRotated ? "Tag rotated 90deg" : "Tag as entered"}
