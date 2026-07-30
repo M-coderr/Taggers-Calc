@@ -259,45 +259,80 @@ function LayoutPreview(props) {
               {(() => {
                 var pieceGroups = [];
                 var reclaimOverlay = [];
+                var currY = oY;
+                var maxX = oX;
+                var maxY = oY;
+
                 Array.from({ length: dM }).forEach(function(_, row) {
+                  var currX = oX;
+                  var maxRowHeight = ph;
+
                   Array.from({ length: dN }).forEach(function(_, col) {
-                    var px = oX + col * pw;
-                    var py = oY + row * ph;
+                    var px = currX;
+                    var py = currY;
                     var marginSvg = margin * sc;
                     var overlapSvg = overlap * sc;
                     var pitchX = tw + 2 * overlapSvg;
                     var pitchY = th + 2 * overlapSvg;
                     var pIdx = row * dN + col + 1;
 
-                    var usableW = pw - 2 * marginSvg;
-                    var usableH = ph - 2 * marginSvg;
+                    var usableW = Math.max(0, pw - 2 * marginSvg);
+                    var usableH = Math.max(0, ph - 2 * marginSvg);
                     var gridW = svgTR > 0 ? svgTR * tw + (svgTR - 1) * 2 * overlapSvg : 0;
                     var gridH = svgTC > 0 ? svgTC * th + (svgTC - 1) * 2 * overlapSvg : 0;
 
+                    var hasExtra = Number(props.reclaimedTags) > 0 || rotRowCount > 0 || rotColCount > 0;
+                    var isCornerFit = reclaimStrategy === 'corner-fit' && hasExtra;
                     var hasBtmRm = !simpleMode && rotColCount > 0 && isHandFeed;
                     var btmReclaimH = hasBtmRm ? rotColCount : 0;
                     var hasRgtRm = !simpleMode && (rotRowCount > 0 || isCornerFit) && isHandFeed;
                     var rgtReclaimN = hasRgtRm ? rotRowCount : 0;
 
-                    var isCornerFit = reclaimStrategy === 'corner-fit';
                     var recClaimH = (btmReclaimH > 0) ? th : 0;
                     var recClaimW = (rgtReclaimN > 0) ? th : 0;
-                    var recClaimW_corner = isCornerFit ? tw : 0;
+                    var recClaimW_corner = (isCornerFit && hasExtra) ? tw : 0;
                     var contentW = gridW + Math.max(recClaimW, recClaimW_corner);
                     var contentH = gridH + recClaimH;
                     try { console.log("[CENTER] piece " + (row*dN+col+1) + " usable=" + usableW.toFixed(1) + "x" + usableH.toFixed(1) + " grid=" + gridW.toFixed(1) + "x" + gridH.toFixed(1) + " content=" + contentW.toFixed(1) + "x" + contentH.toFixed(1) + " recClaimH=" + recClaimH.toFixed(1) + " recClaimW=" + recClaimW.toFixed(1) + " recClaimW_corner=" + recClaimW_corner.toFixed(1) + " btmReclaimH=" + btmReclaimH + " rgtReclaimN=" + rgtReclaimN); } catch(e) {}
                     try { console.log("===> v2-reclaim-center-active <==="); } catch(e) {}
-                    var firstTagX = px + marginSvg + Math.max(0, (usableW - contentW) / 2);
-                    var firstTagY = py + marginSvg + Math.max(0, (usableH - contentH) / 2);
+
+                    var firstTagX = px + marginSvg + Math.max(0, (usableW - gridW) / 2);
+                    var firstTagY = py + marginSvg + Math.max(0, (usableH - gridH) / 2);
                     var lastTagEndX = firstTagX + gridW;
                     var lastTagEndY = firstTagY + gridH;
-                    var extPw = pw + (rgtReclaimN > 0 ? th : 0);
-                    var extPh = ph + (btmReclaimH > 0 ? th : 0);
+
+                    var extPw = Math.max(pw, (lastTagEndX + Math.max(recClaimW, recClaimW_corner) + marginSvg) - px);
+                    var extPh = Math.max(ph, (lastTagEndY + recClaimH + marginSvg) - py);
+
                     var leftStrip = Math.max(0, firstTagX - px);
                     var rightStrip = Math.max(0, px + extPw - (firstTagX + contentW));
                     var topStrip = Math.max(0, firstTagY - py);
                     var bottomStrip = Math.max(0, py + extPh - (firstTagY + contentH));
-                    try { console.log("[CENTER-OFFSET] piece " + (row*dN+col+1) + " offsetX=" + (firstTagX-px-marginSvg).toFixed(2) + " offsetY=" + (firstTagY-py-marginSvg).toFixed(2) + " usableW-contentW=" + (usableW-contentW).toFixed(2) + " usableH-contentH=" + (usableH-contentH).toFixed(2) + " topStrip=" + topStrip.toFixed(2) + " bottomStrip=" + bottomStrip.toFixed(2) + " leftStrip=" + leftStrip.toFixed(2) + " rightStrip=" + rightStrip.toFixed(2) + " extPw=" + extPw.toFixed(1) + " extPh=" + extPh.toFixed(1)); } catch(e) {}
+
+                    try {
+                      console.log("[CENTER-OFFSET] piece " + (row*dN+col+1) +
+                        " offsetX=" + (firstTagX-px-marginSvg).toFixed(2) +
+                        " offsetY=" + (firstTagY-py-marginSvg).toFixed(2) +
+                        " usableW=" + usableW.toFixed(2) +
+                        " contentW=" + contentW.toFixed(2) +
+                        " usableH=" + usableH.toFixed(2) +
+                        " contentH=" + contentH.toFixed(2) +
+                        " (usableW-gridW)=" + (usableW-gridW).toFixed(2) +
+                        " (usableH-gridH)=" + (usableH-gridH).toFixed(2) +
+                        " topStrip=" + topStrip.toFixed(2) +
+                        " bottomStrip=" + bottomStrip.toFixed(2) +
+                        " leftStrip=" + leftStrip.toFixed(2) +
+                        " rightStrip=" + rightStrip.toFixed(2) +
+                        " extPw=" + extPw.toFixed(1) +
+                        " extPh=" + extPh.toFixed(1));
+                    } catch(e) {}
+
+                    currX += extPw;
+                    if (extPh > maxRowHeight) {
+                      maxRowHeight = extPh;
+                    }
+                    if (currX > maxX) maxX = currX;
+                    if (py + extPh > maxY) maxY = py + extPh;
 
                     var totalTagsPerPiece = svgTR * svgTC + btmReclaimH + rgtReclaimN;
                     var pieceIdx = row * dN + col;
@@ -348,7 +383,6 @@ function LayoutPreview(props) {
                     if (!simpleMode) {
                       if (btmReclaimH > 0) {
                         Array.from({ length: btmReclaimH }).forEach(function(_, i) {
-                          var isCornerFit = reclaimStrategy === 'corner-fit';
                           var rcx = isCornerFit ? lastTagEndX : firstTagX + i * (tw + 2 * overlapSvg);
                           var rcy = isCornerFit ? lastTagEndY : lastTagEndY;
                           var tagNum = pieceIdx * totalTagsPerPiece + svgTR * svgTC + i + 1;
@@ -391,7 +425,19 @@ function LayoutPreview(props) {
                       }
                     }
                   });
+                  currY += maxRowHeight;
                 });
+
+                try {
+                  var sheetRightEdge = oX + shW;
+                  var sheetBottomEdge = oY + shH;
+                  var candDesc = dN + "x" + dM + " (" + lpFmt(dPL) + "x" + lpFmt(dPW) + "), reclaim=" + (hasExtra ? (reclaimStrategy || "active") : "none");
+                  console.log("[SHEET-BOUNDARY] layout=" + candDesc + " maxX=" + maxX.toFixed(1) + " sheetRightEdge=" + sheetRightEdge.toFixed(1) +
+                    " fitsX=" + (maxX <= sheetRightEdge + 0.1) +
+                    " maxY=" + maxY.toFixed(1) + " sheetBottomEdge=" + sheetBottomEdge.toFixed(1) +
+                    " fitsY=" + (maxY <= sheetBottomEdge + 0.1));
+                } catch(e) {}
+
                 return [pieceGroups, <g key={"reclaim-overlay"}>{reclaimOverlay}</g>];
               })()}
 

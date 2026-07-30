@@ -147,7 +147,58 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
         if (tagsPerPiece !== ev.total) throw new Error('INVARIANT: tagsPerPiece(' + tagsPerPiece + ') !== ev.total(' + ev.total + ')');
 
         function pushCandidate(evResult, strategy) {
-          var effectiveTagsPerPiece = tagsPerPiece + evResult.reclaimed;
+          var rotRowCount = evResult.rotRowCount || 0;
+          var rotColCount = evResult.rotColCount || 0;
+
+          var usableL = Math.max(0, pL - 2 * marginIn);
+          var usableW = Math.max(0, pW - 2 * marginIn);
+          var gridL = evResult.rows > 0 ? evResult.rows * ori.cutL - 2 * overlapIn : 0;
+          var gridW = evResult.cols > 0 ? evResult.cols * ori.cutW - 2 * overlapIn : 0;
+
+          var isCornerFit = strategy === 'corner-fit';
+          var recClaimL = (rotRowCount > 0) ? ori.cutW : 0;
+          var recClaimW = (rotColCount > 0) ? ori.cutW : 0;
+          var recClaimL_corner = isCornerFit ? ori.cutL : 0;
+
+          var firstTagL = marginIn + Math.max(0, (usableL - gridL) / 2);
+          var lastTagEndL = firstTagL + gridL;
+          var extPL = Math.max(pL, lastTagEndL + Math.max(recClaimL, recClaimL_corner) + marginIn);
+
+          var firstTagW = marginIn + Math.max(0, (usableW - gridW) / 2);
+          var lastTagEndW = firstTagW + gridW;
+          var extPW = Math.max(pW, lastTagEndW + recClaimW + marginIn);
+
+          var validRotRowCount = 0;
+          var totalL = 0;
+          for (var c = 0; c < mi; c++) {
+            var trialExtPL = (c < rotRowCount) ? extPL : pL;
+            if (totalL + trialExtPL <= sheetL + 0.01) {
+              totalL += trialExtPL;
+              if (c < rotRowCount) validRotRowCount++;
+            } else {
+              totalL += pL;
+            }
+          }
+
+          var validRotColCount = 0;
+          var totalW = 0;
+          for (var r = 0; r < ni; r++) {
+            var trialExtPW = (r < rotColCount) ? extPW : pW;
+            if (totalW + trialExtPW <= sheetW + 0.01) {
+              totalW += trialExtPW;
+              if (r < rotColCount) validRotColCount++;
+            } else {
+              totalW += pW;
+            }
+          }
+
+          if (totalL > sheetL + 0.01 || totalW > sheetW + 0.01) {
+            return;
+          }
+
+          var validatedReclaimed = validRotRowCount + validRotColCount;
+          var finalStrategy = (validatedReclaimed > 0) ? strategy : 'none';
+          var effectiveTagsPerPiece = tagsPerPiece + validatedReclaimed;
           var totalTags = effectiveTagsPerPiece * totalPieces;
           if (totalTags < 1) return;
 
@@ -157,7 +208,7 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           var tagAreaUtil = sheetArea > 0 ? Math.min(100, totalTagArea / sheetArea * 100) : 0;
           var wastePct = Math.max(0, 100 - tagAreaUtil);
 
-          var k = tagL + 'x' + tagW + '|' + ori.label + '|' + evResult.rows + 'x' + evResult.cols + '|' + ni + 'x' + mi + (strategy === 'corner-fit' ? '_corner' : '');
+          var k = tagL + 'x' + tagW + '|' + ori.label + '|' + evResult.rows + 'x' + evResult.cols + '|' + ni + 'x' + mi + (finalStrategy === 'corner-fit' ? '_corner' : '');
           if (seen[k]) return;
           seen[k] = true;
 
@@ -172,28 +223,28 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
             tagsRows: evResult.rows, tagsCols: evResult.cols,
             tagsPerPieceNominal: tagsPerPiece,
             totalTagsPerSheet: totalTags,
-            reclaimedTags: evResult.reclaimed * totalPieces,
+            reclaimedTags: validatedReclaimed * totalPieces,
             leftoverL: evResult.leftoverL, leftoverW: evResult.leftoverW,
             totalPieces: totalPieces,
             sheetsNeeded: sheetsNeeded,
             wastePct: Math.min(100, wastePct),
             utilization: Math.min(100, tagAreaUtil),
             feedMode: feedLabel,
-            tagDesc: ori.label + ' ' + ni + 'x' + mi + (strategy === 'corner-fit' ? ' corner-fit' : ''),
+            tagDesc: ori.label + ' ' + ni + 'x' + mi + (finalStrategy === 'corner-fit' ? ' corner-fit' : ''),
             pieceDesc: lpFmt(pL) + 'x' + lpFmt(pW),
             balanceScore: balanceScore,
             optimization: {
               baseTags: tagsPerPiece,
               addedRows: evResult.addedRows, addedCols: evResult.addedCols,
-              rotAdditions: evResult.rotAdditions, rotColCount: evResult.rotColCount, rotRowCount: evResult.rotRowCount,
+              rotAdditions: validatedReclaimed, rotColCount: validRotColCount, rotRowCount: validRotRowCount,
               finalTags: effectiveTagsPerPiece,
               mainRows: evResult.rows, mainCols: evResult.cols,
               renderRows: evResult.rows, renderCols: evResult.cols,
               balanceScore: balanceScore,
-              hasExtra: evResult.reclaimed > 0,
+              hasExtra: validatedReclaimed > 0,
               isTagRotated: ori.label === 'rotated',
-              reclaimedTags: evResult.reclaimed,
-              reclaimStrategy: strategy,
+              reclaimedTags: validatedReclaimed,
+              reclaimStrategy: finalStrategy,
             },
           });
         }
