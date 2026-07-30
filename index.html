@@ -8,27 +8,28 @@
 </head>
 <body>
 <div id="root"></div>
+<div id="version-badge" style="position:fixed;bottom:4px;right:4px;background:#e74c3c;color:#fff;font:10px monospace;padding:2px 6px;border-radius:3px;z-index:9999;opacity:0.8">v2-center</div>
 
-<script src="lib/react.min.js"></script>
-<script src="lib/react-dom.min.js"></script>
-<script src="lib/babel.min.js"></script>
-<script src="data/papers.js"></script>
-<script src="data/machines.js"></script>
-<script src="data/processes.js"></script>
-<script src="engine/layoutValidation.js"></script>
-<script src="engine/layoutEngine.js"></script>
+<script src="lib/react.min.js?v=2"></script>
+<script src="lib/react-dom.min.js?v=2"></script>
+<script src="lib/babel.min.js?v=2"></script>
+<script src="data/papers.js?v=2"></script>
+<script src="data/machines.js?v=2"></script>
+<script src="data/processes.js?v=2"></script>
+<script src="engine/layoutValidation.js?v=2"></script>
+<script src="engine/layoutEngine.js?v=2"></script>
 
-<script src="engine/layoutStrategies.js"></script>
-<script src="engine/layoutScore.js"></script>
-<script src="engine/wasteRecovery.js"></script>
-<script src="engine/rulesEngine.js"></script>
+<script src="engine/layoutStrategies.js?v=2"></script>
+<script src="engine/layoutScore.js?v=2"></script>
+<script src="engine/wasteRecovery.js?v=2"></script>
+<script src="engine/rulesEngine.js?v=2"></script>
 
-<script src="engine/optimizer.js"></script>
-<script src="engine/layoutOptimizer.js"></script>
+<script src="engine/optimizer.js?v=2"></script>
+<script src="engine/layoutOptimizer.js?v=2"></script>
 
-<script src="engine/wasteEngine.js"></script>
-<script src="engine/costingEngine.js"></script>
-<script src="engine/layoutRegressionTests.js"></script>
+<script src="engine/wasteEngine.js?v=2"></script>
+<script src="engine/costingEngine.js?v=2"></script>
+<script src="engine/layoutRegressionTests.js?v=2"></script>
 
 <script type="text/babel" data-presets="react">
 function lpFmt(v) {
@@ -136,6 +137,9 @@ function LayoutPreview(props) {
   var rotAdditions = Number(props.rotAdditions) || 0;
   var rotColCount = Number(props.rotColCount) || 0;
   var rotRowCount = Number(props.rotRowCount) || 0;
+  var reclaimStrategy = props.reclaimStrategy || 'strip';
+  var isHandFeed = props.feedDirection && props.feedDirection.indexOf('Hand') >= 0;
+  var isCornerFit = reclaimStrategy === 'corner-fit';
   var totalSheets = props.totalSheets || 0;
 
   var valid = sL > 0 && sW > 0 && pL > 0 && pW > 0;
@@ -252,102 +256,144 @@ function LayoutPreview(props) {
               {wasteR > 0.5 && <rect x={oX + shW - wasteR} y={oY} width={wasteR} height={shH} fill="url(#lp-hatch)" stroke="none" />}
               {wasteB > 0.5 && <rect x={oX} y={oY + shH - wasteB} width={shW} height={wasteB} fill="url(#lp-hatch)" stroke="none" />}
 
-              {Array.from({ length: dM }).map(function(_, row) {
-                return Array.from({ length: dN }).map(function(_, col) {
-                  var px = oX + col * pw;
-                  var py = oY + row * ph;
-                  var marginSvg = margin * sc;
-                  var overlapSvg = overlap * sc;
-                  var pitchX = tw + 2 * overlapSvg;
-                  var pitchY = th + 2 * overlapSvg;
-                  var pIdx = row * dN + col + 1;
+              {(() => {
+                var pieceGroups = [];
+                var reclaimOverlay = [];
+                Array.from({ length: dM }).forEach(function(_, row) {
+                  Array.from({ length: dN }).forEach(function(_, col) {
+                    var px = oX + col * pw;
+                    var py = oY + row * ph;
+                    var marginSvg = margin * sc;
+                    var overlapSvg = overlap * sc;
+                    var pitchX = tw + 2 * overlapSvg;
+                    var pitchY = th + 2 * overlapSvg;
+                    var pIdx = row * dN + col + 1;
 
-                  var usableW = pw - 2 * marginSvg;
-                  var usableH = ph - 2 * marginSvg;
-                  var gridW = svgTR > 0 ? svgTR * tw + (svgTR - 1) * 2 * overlapSvg : 0;
-                  var gridH = svgTC > 0 ? svgTC * th + (svgTC - 1) * 2 * overlapSvg : 0;
-                  var firstTagX = px + marginSvg + Math.max(0, (usableW - gridW) / 2);
-                  var firstTagY = py + marginSvg + Math.max(0, (usableH - gridH) / 2);
-                  var lastTagEndX = firstTagX + gridW;
-                  var lastTagEndY = firstTagY + gridH;
-                  var leftStrip = Math.max(0, firstTagX - px);
-                  var rightStrip = Math.max(0, px + pw - lastTagEndX);
-                  var topStrip = Math.max(0, firstTagY - py);
-                  var bottomStrip = Math.max(0, py + ph - lastTagEndY);
+                    var usableW = pw - 2 * marginSvg;
+                    var usableH = ph - 2 * marginSvg;
+                    var gridW = svgTR > 0 ? svgTR * tw + (svgTR - 1) * 2 * overlapSvg : 0;
+                    var gridH = svgTC > 0 ? svgTC * th + (svgTC - 1) * 2 * overlapSvg : 0;
 
-                  var tagIdBase = (row * dN + col) * svgTR * svgTC;
+                    var hasBtmRm = !simpleMode && rotColCount > 0 && isHandFeed;
+                    var btmReclaimH = hasBtmRm ? rotColCount : 0;
+                    var hasRgtRm = !simpleMode && (rotRowCount > 0 || isCornerFit) && isHandFeed;
+                    var rgtReclaimN = hasRgtRm ? rotRowCount : 0;
 
-                  var hasBtmRm = !simpleMode && rotColCount > 0;
-                  var btmReclaimH = hasBtmRm ? rotColCount : 0;
-                  var hasRgtRm = !simpleMode && rotRowCount > 0;
-                  var rgtReclaimN = hasRgtRm ? rotRowCount : 0;
+                    var isCornerFit = reclaimStrategy === 'corner-fit';
+                    var recClaimH = (btmReclaimH > 0) ? th : 0;
+                    var recClaimW = (rgtReclaimN > 0) ? th : 0;
+                    var recClaimW_corner = isCornerFit ? tw : 0;
+                    var contentW = gridW + Math.max(recClaimW, recClaimW_corner);
+                    var contentH = gridH + recClaimH;
+                    try { console.log("[CENTER] piece " + (row*dN+col+1) + " usable=" + usableW.toFixed(1) + "x" + usableH.toFixed(1) + " grid=" + gridW.toFixed(1) + "x" + gridH.toFixed(1) + " content=" + contentW.toFixed(1) + "x" + contentH.toFixed(1) + " recClaimH=" + recClaimH.toFixed(1) + " recClaimW=" + recClaimW.toFixed(1) + " recClaimW_corner=" + recClaimW_corner.toFixed(1) + " btmReclaimH=" + btmReclaimH + " rgtReclaimN=" + rgtReclaimN); } catch(e) {}
+                    try { console.log("===> v2-reclaim-center-active <==="); } catch(e) {}
+                    var firstTagX = px + marginSvg + Math.max(0, (usableW - contentW) / 2);
+                    var firstTagY = py + marginSvg + Math.max(0, (usableH - contentH) / 2);
+                    var lastTagEndX = firstTagX + gridW;
+                    var lastTagEndY = firstTagY + gridH;
+                    var extPw = pw + (rgtReclaimN > 0 ? th : 0);
+                    var extPh = ph + (btmReclaimH > 0 ? th : 0);
+                    var leftStrip = Math.max(0, firstTagX - px);
+                    var rightStrip = Math.max(0, px + extPw - (firstTagX + contentW));
+                    var topStrip = Math.max(0, firstTagY - py);
+                    var bottomStrip = Math.max(0, py + extPh - (firstTagY + contentH));
+                    try { console.log("[CENTER-OFFSET] piece " + (row*dN+col+1) + " offsetX=" + (firstTagX-px-marginSvg).toFixed(2) + " offsetY=" + (firstTagY-py-marginSvg).toFixed(2) + " usableW-contentW=" + (usableW-contentW).toFixed(2) + " usableH-contentH=" + (usableH-contentH).toFixed(2) + " topStrip=" + topStrip.toFixed(2) + " bottomStrip=" + bottomStrip.toFixed(2) + " leftStrip=" + leftStrip.toFixed(2) + " rightStrip=" + rightStrip.toFixed(2) + " extPw=" + extPw.toFixed(1) + " extPh=" + extPh.toFixed(1)); } catch(e) {}
 
-                  return (
-                    <g key={"p" + row + "-" + col}>
-                      <rect x={px} y={py} width={pw} height={ph} fill="none" stroke="#999" strokeWidth={geo.swT} />
-                      {!simpleMode && <>
-                      {rightStrip > 0.5 && !hasRgtRm && <rect x={lastTagEndX} y={firstTagY} width={rightStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
-                      {leftStrip > 0.5 && <rect x={px} y={firstTagY} width={leftStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
-                      {bottomStrip > 0.5 && !hasBtmRm && <rect x={firstTagX} y={lastTagEndY} width={gridW} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
-                      {topStrip > 0.5 && <rect x={firstTagX} y={py} width={gridW} height={topStrip} fill="url(#lp-hatch)" stroke="none" />}
-                      {leftStrip > 0.5 && topStrip > 0.5 && <rect x={px} y={py} width={leftStrip} height={topStrip} fill="url(#lp-hatch)" stroke="none" />}
-                      {rightStrip > 0.5 && topStrip > 0.5 && <rect x={lastTagEndX} y={py} width={rightStrip} height={topStrip} fill="url(#lp-hatch)" stroke="none" />}
-                      {leftStrip > 0.5 && bottomStrip > 0.5 && !hasBtmRm && <rect x={px} y={lastTagEndY} width={leftStrip} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
-                      {rightStrip > 0.5 && bottomStrip > 0.5 && !hasBtmRm && <rect x={lastTagEndX} y={lastTagEndY} width={rightStrip} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
-                      </>}
-                      {simpleMode ? (
+                    var totalTagsPerPiece = svgTR * svgTC + btmReclaimH + rgtReclaimN;
+                    var pieceIdx = row * dN + col;
+                    try { console.log("[RECLAIM-DIAG] piece " + (pieceIdx+1) + " (row=" + row + " col=" + col + ") btmReclaimH=" + btmReclaimH + " rgtReclaimN=" + rgtReclaimN + " contentW=" + contentW.toFixed(1) + " contentH=" + contentH.toFixed(1) + " firstTagX=" + firstTagX.toFixed(1) + " firstTagY=" + firstTagY.toFixed(1) + " rcx(rgt)=" + (lastTagEndX).toFixed(1) + " rcy(rgt)=" + firstTagY.toFixed(1) + " rcx(btm)=" + firstTagX.toFixed(1) + " rcy(btm)=" + (lastTagEndY).toFixed(1) + " tw=" + tw.toFixed(1) + " th=" + th.toFixed(1)); } catch(e) {}
+
+                    pieceGroups.push(
+                      <g key={"p" + row + "-" + col}>
+                        <rect x={px} y={py} width={extPw} height={extPh} fill="none" stroke="#999" strokeWidth={geo.swT} />
+                        {!simpleMode && <>
+                        {rightStrip > 0.5 && !hasRgtRm && <rect x={lastTagEndX} y={firstTagY} width={rightStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
+                        {leftStrip > 0.5 && <rect x={px} y={firstTagY} width={leftStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
+                        {bottomStrip > 0.5 && !hasBtmRm && <rect x={firstTagX} y={lastTagEndY} width={gridW} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
+                        {topStrip > 0.5 && <rect x={firstTagX} y={py} width={gridW} height={topStrip} fill="url(#lp-hatch)" stroke="none" />}
+                        {leftStrip > 0.5 && topStrip > 0.5 && <rect x={px} y={py} width={leftStrip} height={topStrip} fill="url(#lp-hatch)" stroke="none" />}
+                        {rightStrip > 0.5 && topStrip > 0.5 && <rect x={lastTagEndX} y={py} width={rightStrip} height={topStrip} fill="url(#lp-hatch)" stroke="none" />}
+                        {leftStrip > 0.5 && bottomStrip > 0.5 && !hasBtmRm && <rect x={px} y={lastTagEndY} width={leftStrip} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
+                        {rightStrip > 0.5 && bottomStrip > 0.5 && !hasBtmRm && <rect x={lastTagEndX} y={lastTagEndY} width={rightStrip} height={bottomStrip} fill="url(#lp-hatch)" stroke="none" />}
+                        </>}
+                        {simpleMode ? (
+                          <g>
+                            {svgTC * svgTR + btmReclaimH + rgtReclaimN > 1 && <text x={px + pw / 2} y={py + ph / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.max(6, Math.min(10, sc * 0.5))} fill="#888" fontFamily="'Courier New',monospace">{svgTC * svgTR + btmReclaimH + rgtReclaimN} tags</text>}
+                          </g>
+                        ) : (
                         <g>
-                          {svgTC * svgTR + btmReclaimH + rgtReclaimN > 1 && <text x={px + pw / 2} y={py + ph / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.max(6, Math.min(10, sc * 0.5))} fill="#888" fontFamily="'Courier New',monospace">{svgTC * svgTR + btmReclaimH + rgtReclaimN} tags</text>}
+                          {Array.from({ length: svgTC }).map(function(_, tr) {
+                            return Array.from({ length: svgTR }).map(function(_, tc) {
+                              var tx = firstTagX + tc * pitchX;
+                              var ty = firstTagY + tr * pitchY;
+                              var tagNum = pieceIdx * totalTagsPerPiece + tr * svgTR + tc + 1;
+                              var tagId = "T" + String(tagNum);
+                              var showId = tw > 14 && th > 10;
+                              var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
+                              return (
+                                <g key={"t" + row + "-" + col + "-" + tr + "-" + tc}>
+                                  {renderTagShape({
+                                    x: tx, y: ty, w: tw, h: th, sc: sc,
+                                    style: TAG_STYLE, layers: L,
+                                    id: tagId, showId: showId, idFontSize: idFontSize,
+                                  })}
+                                </g>
+                              );
+                            });
+                          })}
                         </g>
-                      ) : (
-                      <g>
-                        {Array.from({ length: svgTC }).map(function(_, tr) {
-                          return Array.from({ length: svgTR }).map(function(_, tc) {
-                            var tx = firstTagX + tc * pitchX;
-                            var ty = firstTagY + tr * pitchY;
-                            var tagNum = tagIdBase + tr * svgTR + tc + 1;
-                            var tagId = "T" + String(tagNum);
-                            var showId = tw > 14 && th > 10;
-                            var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
-                            return (
-                              <g key={"t" + row + "-" + col + "-" + tr + "-" + tc}>
-                                {renderTagShape({
-                                  x: tx, y: ty, w: tw, h: th, sc: sc,
-                                  style: TAG_STYLE, layers: L,
-                                  id: tagId, showId: showId, idFontSize: idFontSize,
-                                })}
-                              </g>
-                            );
-                          });
-                        })}
-                        {btmReclaimH > 0 && Array.from({ length: btmReclaimH }).map(function(_, i) {
-                          var rcx = firstTagX + i * (th + 2 * overlapSvg);
-                          var rcy = lastTagEndY;
-                          var showR = th > 10 && tw > 8;
-                          return (
+                        )}
+                      </g>
+                    );
+                    if (!simpleMode) {
+                      if (btmReclaimH > 0) {
+                        Array.from({ length: btmReclaimH }).forEach(function(_, i) {
+                          var isCornerFit = reclaimStrategy === 'corner-fit';
+                          var rcx = isCornerFit ? lastTagEndX : firstTagX + i * (tw + 2 * overlapSvg);
+                          var rcy = isCornerFit ? lastTagEndY : lastTagEndY;
+                          var tagNum = pieceIdx * totalTagsPerPiece + svgTR * svgTC + i + 1;
+                          var tagId = "T" + String(tagNum);
+                          var showId = tw > 14 && th > 10;
+                          var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
+                          try { console.log("[RECLAIM-DIAG] piece " + (pieceIdx+1) + " BTM-reclaim RENDERS tag=" + tagId + " at (" + rcx.toFixed(1) + "," + rcy.toFixed(1) + ") w=" + tw.toFixed(1) + " h=" + th.toFixed(1)); } catch(e) {}
+                          reclaimOverlay.push(
                             <g key={"rb-" + row + "-" + col + "-" + i}>
-                              <rect x={rcx} y={rcy} width={th} height={tw} rx="2" fill="#e8f4fd" stroke="#2980b9" strokeWidth="1.6" strokeDasharray="4,3" />
-                              {showR && <text x={rcx + th/2} y={rcy + tw/2 + 1} textAnchor="middle" fontSize="7" fontWeight="700" fill="#2980b9">R</text>}
+                              {renderTagShape({
+                                x: rcx, y: rcy, w: tw, h: th, sc: sc,
+                                style: TAG_STYLE, layers: L,
+                                id: tagId, showId: showId, idFontSize: idFontSize,
+                              })}
+                              <rect x={rcx} y={rcy} width={tw} height={th} fill="rgba(255,0,0,0.3)" stroke="red" strokeWidth="3" />
                             </g>
                           );
-                        })}
-                        {rgtReclaimN > 0 && Array.from({ length: rgtReclaimN }).map(function(_, i) {
+                        });
+                      }
+                      if (rgtReclaimN > 0) {
+                        Array.from({ length: rgtReclaimN }).forEach(function(_, i) {
                           var rcx = lastTagEndX;
                           var rcy = firstTagY + i * (tw + 2 * overlapSvg);
-                          var showR = th > 10 && tw > 8;
-                          return (
+                          var tagNum = pieceIdx * totalTagsPerPiece + svgTR * svgTC + btmReclaimH + i + 1;
+                          var tagId = "T" + String(tagNum);
+                          var showId = th > 14 && tw > 10;
+                          var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
+                          try { console.log("[RECLAIM-DIAG] piece " + (pieceIdx+1) + " RGT-reclaim RENDERS tag=" + tagId + " at (" + rcx.toFixed(1) + "," + rcy.toFixed(1) + ") w=" + th.toFixed(1) + " h=" + tw.toFixed(1)); } catch(e) {}
+                          reclaimOverlay.push(
                             <g key={"rr-" + row + "-" + col + "-" + i}>
-                              <rect x={rcx} y={rcy} width={th} height={tw} rx="2" fill="#e8f4fd" stroke="#2980b9" strokeWidth="1.6" strokeDasharray="4,3" />
-                              {showR && <text x={rcx + th/2} y={rcy + tw/2 + 1} textAnchor="middle" fontSize="7" fontWeight="700" fill="#2980b9">R</text>}
+                              {renderTagShape({
+                                x: rcx, y: rcy, w: th, h: tw, sc: sc,
+                                style: TAG_STYLE, layers: L,
+                                id: tagId, showId: showId, idFontSize: idFontSize,
+                              })}
+                              <rect x={rcx} y={rcy} width={th} height={tw} fill="rgba(255,0,0,0.3)" stroke="red" strokeWidth="3" />
                             </g>
                           );
-                        })}
-                      </g>
-                      )}
-                    </g>
-                  );
+                        });
+                      }
+                    }
+                  });
                 });
-              })}
+                return [pieceGroups, <g key={"reclaim-overlay"}>{reclaimOverlay}</g>];
+              })()}
 
               <g>
                 <line x1={oX} y1={oY - 3} x2={oX} y2={dimY - eO} stroke="#444" strokeWidth={geo.swT} />
@@ -410,6 +456,9 @@ function LayoutPreview(props) {
               <div className="lp-info-kv"><span className="lp-info-k">Generated</span><span className="lp-info-v">{dateStr}</span></div>
               <div className="lp-info-kv"><span className="lp-info-k">Orientation</span><span className="lp-info-v">Landscape</span></div>
               <div className="lp-info-kv"><span className="lp-info-k">Feed</span><span className="lp-info-v">{props.feedDirection || "Offset"}</span></div>
+              {isHandFeed && rotAdditions > 0 && (<div className="lp-info-kv"><span className="lp-info-k">Reclaim</span><span className="lp-info-v">{isCornerFit ? 'Corner-fit' : 'Strip'} +{rotAdditions}</span></div>)}
+              {isHandFeed && rotAdditions === 0 && (<div className="lp-info-kv"><span className="lp-info-k">Reclaim</span><span className="lp-info-v" style={{color:"#999"}}>None</span></div>)}
+              {!isHandFeed && (<div className="lp-info-kv"><span className="lp-info-k">Reclaim</span><span className="lp-info-v" style={{color:"#999"}}>Offset — not applicable</span></div>)}
             </div>
           </div>
         </div>
@@ -1049,8 +1098,8 @@ function TagCostingCalculator() {
                   <Field label="Cutting overlap" hint="Added to each side before punching"><NumberInput value={cuttingOverlapMM} onChange={setCuttingOverlapMM} min={0} suffix="mm/side" /></Field>
                   <Field label="Inside margin" hint="Minimum spacing kept around tags"><NumberInput value={insideMarginMM} onChange={setInsideMarginMM} min={0} suffix="mm/side" /></Field>
                 </div>
-                <div className="tc-auto-note"><Info /> Sheet cut into <strong>{num(calc.n,0)} x {num(calc.m,0)} = {num(calc.autoPiecesPerSheet, 0)} pieces</strong> ({num(calc.pieceL)}" x {num(calc.pieceW)}" each, to fit the {printMethod} machine). Each piece holds <strong>{num(calc.tagsRows,0)} x {num(calc.tagsCols,0)} = {num(calc.tagsPerPieceNominal,0)} tags</strong> - {num(calc.totalTagsPerSheet,0)} tags/sheet total.</div>
-                <div className="tc-field-hint" style={{ marginBottom: 10 }}>Inlap left over per piece: {num(calc.leftoverL)}" x {num(calc.leftoverW)}" (minimum required: {num(2*calc.marginIn)}" x {num(2*calc.marginIn)}")</div>
+                <div className="tc-auto-note"><Info /> Sheet cut into <strong>{num(calc.n,0)} x {num(calc.m,0)} = {num(calc.autoPiecesPerSheet, 0)} pieces</strong> ({num(calc.pieceL)}" x {num(calc.pieceW)}" each, to fit the {printMethod} machine). Each piece holds <strong>{num(calc.tagsRows,0)} x {num(calc.tagsCols,0)} = {num(calc.tagsPerPieceNominal,0)} tags</strong>{calc.reclaimedTagsPerPiece > 0 ? <span> + <strong style={{color:"#2980b9"}}>{calc.reclaimedTagsPerPiece} reclaimed</strong> = <strong>{calc.tagsPerPieceNominal + calc.reclaimedTagsPerPiece}</strong> tags/piece</span> : ""} - {num(calc.totalTagsPerSheet,0)} tags/sheet total.</div>
+                <div className="tc-field-hint" style={{ marginBottom: 10 }}>Inlap left over per piece: {num(calc.leftoverL)}" x {num(calc.leftoverW)}" (minimum required: {num(2*calc.marginIn)}" x {num(2*calc.marginIn)}"){printMethod === "offset" ? " - strip reclaiming available for hand print only" : ""}</div>
                 <button type="button" className={"tc-assump-toggle" + (showAdvancedLayout ? " open" : "")} style={{ marginTop: 0, marginBottom: 10 }} onClick={function() { setShowAdvancedLayout(function(s) { return !s; }); }}><ChevronDown /> {showAdvancedLayout ? "Hide" : "Show"} advanced layout options</button>
                 {showAdvancedLayout && (<div className="tc-override-box">
                   <div className="tc-field-hint" style={{ marginBottom: 10 }}>Max feed size - the largest piece each machine can take. Pieces are grouped as large as possible within this limit.</div>
@@ -1168,6 +1217,7 @@ function TagCostingCalculator() {
                   rotAdditions={selectedC && selectedC.optimization ? selectedC.optimization.rotAdditions : 0}
                   rotColCount={selectedC && selectedC.optimization ? selectedC.optimization.rotColCount : 0}
                   rotRowCount={selectedC && selectedC.optimization ? selectedC.optimization.rotRowCount : 0}
+                  reclaimStrategy={selectedC && selectedC.optimization ? selectedC.optimization.reclaimStrategy : 'strip'}
                   overlap={calc.overlapIn} margin={calc.marginIn}
                   tagRotated={selectedC && selectedC.optimization ? selectedC.optimization.isTagRotated : false}
                   orientation={calc.isRotated ? "Tag rotated 90deg" : "Tag as entered"}

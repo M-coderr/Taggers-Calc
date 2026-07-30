@@ -12,7 +12,7 @@ function optimizeOrientation(sheetL, sheetW, tagL, tagW, feed, overlapIn, margin
     layout.validation = validateLayout(layout);
     if (layout.validation.valid) {
       if (!isHandFeed || (Math.min(layout.pieceL, layout.pieceW) >= MIN_HAND_PIECE && Math.max(layout.pieceL, layout.pieceW) >= MIN_HAND_PIECE_LONG)) {
-        layout.wasteRecovery = analyzeWaste(layout);
+        layout.wasteRecovery = analyzeWaste(layout, isHandFeed);
         layouts.push(layout);
       }
     }
@@ -28,6 +28,10 @@ function optimizeOrientation(sheetL, sheetW, tagL, tagW, feed, overlapIn, margin
   var best = layouts[0];
   var isRotated = best.TL !== tagL || best.TW !== tagW;
 
+  var wr = best.wasteRecovery || {};
+  var reclaimedTagsPerPiece = isHandFeed ? (wr.recoverableTags || 0) : 0;
+  var effectiveTotal = best.totalTagsPerSheet + reclaimedTagsPerPiece * best.autoPiecesPerSheet;
+
   return {
     TL: best.TL, TW: best.TW,
     n: best.n, m: best.m,
@@ -35,8 +39,12 @@ function optimizeOrientation(sheetL, sheetW, tagL, tagW, feed, overlapIn, margin
     autoPiecesPerSheet: best.autoPiecesPerSheet,
     tagsRows: best.tagsRows, tagsCols: best.tagsCols,
     tagsPerPieceNominal: best.tagsPerPieceNominal,
+    reclaimedTagsPerPiece: reclaimedTagsPerPiece,
+    rotAdditions: wr.rotAdditions || 0,
+    rotColCount: wr.rotColCount || 0,
+    rotRowCount: wr.rotRowCount || 0,
     leftoverL: best.leftoverL, leftoverW: best.leftoverW,
-    totalTagsPerSheet: best.totalTagsPerSheet,
+    totalTagsPerSheet: Math.max(best.totalTagsPerSheet, effectiveTotal),
     isRotated: isRotated,
     strategyAnalysis: { best: best, allValid: layouts },
   };

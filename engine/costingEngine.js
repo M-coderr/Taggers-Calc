@@ -35,7 +35,10 @@ function computeCosts(layout, params) {
     : r.autoPiecesPerSheet;
 
   var invariantTagsPerPiece = (r.tagsRows || 0) * (r.tagsCols || 0);
-  var reclaimedTagsPerPiece = (r.optimization && r.optimization.reclaimedTags) || 0;
+  var reclaimedTagsPerPiece = (r.optimization && r.optimization.reclaimedTags) || (r.reclaimedTagsPerPiece) || 0;
+  if (printMethod === "offset") {
+    reclaimedTagsPerPiece = 0;
+  }
   if (r.tagsRows <= 0 || r.tagsCols <= 0) {
     invariantTagsPerPiece = 0;
   }
@@ -95,6 +98,7 @@ function computeCosts(layout, params) {
     overlapIn: params.overlapIn, marginIn: params.marginIn,
     tagsRows: r.tagsRows, tagsCols: r.tagsCols,
     tagsPerPieceNominal: r.tagsPerPieceNominal,
+    reclaimedTagsPerPiece: reclaimedTagsPerPiece,
     leftoverL: r.leftoverL, leftoverW: r.leftoverW,
     totalTagsPerSheet: tagsPerSheet,
     autoPiecesPerSheet: r.autoPiecesPerSheet,

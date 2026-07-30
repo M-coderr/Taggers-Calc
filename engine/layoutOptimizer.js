@@ -1,3 +1,4 @@
+try { console.log("[LAYOUT-OPT] v2 loaded"); } catch(e) {}
 function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, orderQty, feedOffset, feedHand) {
   if (!sheetL || !sheetW || !tagL || !tagW || sheetL <= 0 || sheetW <= 0 || tagL <= 0 || tagW <= 0) {
     return [];
@@ -35,6 +36,7 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
   var rotCutL = tagW + 2 * overlapIn;
   var rotCutW = tagL + 2 * overlapIn;
 
+  function lpFmt(v) { return v.toFixed(3); }
   function evalLayout(pieceL, pieceW, cutL, cutW) {
     var usableL = Math.max(0, pieceL - 2 * marginIn);
     var usableW = Math.max(0, pieceW - 2 * marginIn);
@@ -46,19 +48,67 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
     var leftoverW = usableW_eff - cols * cutW;
     var reclaimed = 0, rotAdditions = 0, rotColCount = 0, rotRowCount = 0;
     var addedRows = 0, addedCols = 0;
-    if (leftoverL >= cutW) {
-      rotColCount = Math.floor(usableW_eff / cutL);
-      reclaimed += rotColCount;
-      rotAdditions += rotColCount;
-    }
-    if (leftoverW >= cutL) {
-      var availH = rotColCount > 0 ? rows * cutL : usableL_eff;
-      if (availH >= cutW) {
-        rotRowCount = Math.floor(availH / cutW);
-        reclaimed += rotRowCount;
-        rotAdditions += rotRowCount;
+    if (isHandFeed) {
+      if (leftoverL >= cutW) {
+        rotColCount = Math.floor(usableW_eff / cutL);
+        reclaimed += rotColCount;
+        rotAdditions += rotColCount;
+      }
+      if (leftoverW >= cutL) {
+        var availH = rotColCount > 0 ? rows * cutL : usableL_eff;
+        if (availH >= cutW) {
+          rotRowCount = Math.floor(availH / cutW);
+          reclaimed += rotRowCount;
+          rotAdditions += rotRowCount;
+        }
       }
     }
+    try { console.log('[RECLAIM-STRIP] ' + (isHandFeed ? 'HAND' : 'OFFSET') + ' piece ' + lpFmt(pieceL) + 'x' + lpFmt(pieceW) + ' cut ' + lpFmt(cutL) + 'x' + lpFmt(cutW) + ' rows=' + rows + ' cols=' + cols + ' usabEff ' + lpFmt(usableL_eff) + 'x' + lpFmt(usableW_eff) + ' leftover ' + lpFmt(leftoverL) + 'x' + lpFmt(leftoverW) + ' reclaimed=' + reclaimed + (reclaimed > 0 ? ' btmCols=' + rotColCount + ' rgtRows=' + rotRowCount : '')); } catch(e) {}
+    return { rows: rows, cols: cols, total: rows * cols, reclaimed: reclaimed, addedRows: addedRows, addedCols: addedCols, rotAdditions: rotAdditions, rotColCount: rotColCount, rotRowCount: rotRowCount, leftoverL: leftoverL, leftoverW: leftoverW };
+  }
+
+  function evalCornerFitReclaim(pieceL, pieceW, cutL, cutW) {
+    var usableL = Math.max(0, pieceL - 2 * marginIn);
+    var usableW = Math.max(0, pieceW - 2 * marginIn);
+    var rows = cutL > 0 ? Math.floor((usableL + 2 * overlapIn) / cutL) : 0;
+    var cols = cutW > 0 ? Math.floor((usableW + 2 * overlapIn) / cutW) : 0;
+    var usableL_eff = usableL + 2 * overlapIn;
+    var usableW_eff = usableW + 2 * overlapIn;
+    var leftoverL = usableL_eff - rows * cutL;
+    var leftoverW = usableW_eff - cols * cutW;
+    var reclaimed = 0, rotAdditions = 0, rotColCount = 0, rotRowCount = 0;
+    var addedRows = 0, addedCols = 0;
+    var extensionL = 0, extensionW = 0;
+
+    if (isHandFeed) {
+      var pocketOK = false;
+      if (leftoverL >= cutW && leftoverW >= cutL) {
+        pocketOK = true;
+      } else if (leftoverL >= cutL && leftoverW >= cutW) {
+        pocketOK = true;
+      }
+      if (!pocketOK) {
+        var needL4rot = Math.max(0, cutW - leftoverL);
+        var needW4rot = Math.max(0, cutL - leftoverW);
+        var needL4norm = Math.max(0, cutL - leftoverL);
+        var needW4norm = Math.max(0, cutW - leftoverW);
+        if (needL4rot <= marginIn && needW4rot <= marginIn) {
+          extensionL = needL4rot;
+          extensionW = needW4rot;
+          pocketOK = true;
+        } else if (needL4norm <= marginIn && needW4norm <= marginIn) {
+          extensionL = needL4norm;
+          extensionW = needW4norm;
+          pocketOK = true;
+        }
+      }
+      if (pocketOK) {
+        reclaimed = 1;
+        rotAdditions = 1;
+        rotColCount = 1;
+      }
+    }
+    try { console.log('[RECLAIM-CORNER] ' + (isHandFeed ? 'HAND' : 'OFFSET') + ' piece ' + lpFmt(pieceL) + 'x' + lpFmt(pieceW) + ' cut ' + lpFmt(cutL) + 'x' + lpFmt(cutW) + ' rows=' + rows + ' cols=' + cols + ' leftover ' + lpFmt(leftoverL) + 'x' + lpFmt(leftoverW) + ' extension ' + lpFmt(extensionL) + 'x' + lpFmt(extensionW) + ' reclaimed=' + reclaimed); } catch(e) {}
     return { rows: rows, cols: cols, total: rows * cols, reclaimed: reclaimed, addedRows: addedRows, addedCols: addedCols, rotAdditions: rotAdditions, rotColCount: rotColCount, rotRowCount: rotRowCount, leftoverL: leftoverL, leftoverW: leftoverW };
   }
 
@@ -95,54 +145,73 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
         var totalPieces = ni * mi;
         var tagsPerPiece = ev.rows * ev.cols;
         if (tagsPerPiece !== ev.total) throw new Error('INVARIANT: tagsPerPiece(' + tagsPerPiece + ') !== ev.total(' + ev.total + ')');
-        var effectiveTagsPerPiece = tagsPerPiece + ev.reclaimed;
-        var totalTags = effectiveTagsPerPiece * totalPieces;
-        if (totalTags < 1) continue;
 
-        var sheetArea = sheetL * sheetW;
-        var sheetsNeeded = Math.ceil(orderQty / totalTags);
-        var totalTagArea = totalTags * ori.cutL * ori.cutW;
-        var tagAreaUtil = sheetArea > 0 ? Math.min(100, totalTagArea / sheetArea * 100) : 0;
-        var wastePct = Math.max(0, 100 - tagAreaUtil);
+        function pushCandidate(evResult, strategy) {
+          var effectiveTagsPerPiece = tagsPerPiece + evResult.reclaimed;
+          var totalTags = effectiveTagsPerPiece * totalPieces;
+          if (totalTags < 1) return;
 
-        var k = tagL + 'x' + tagW + '|' + ori.label + '|' + ev.rows + 'x' + ev.cols + '|' + ni + 'x' + mi;
-        if (seen[k]) continue;
-        seen[k] = true;
+          var sheetArea = sheetL * sheetW;
+          var sheetsNeeded = Math.ceil(orderQty / totalTags);
+          var totalTagArea = totalTags * ori.cutL * ori.cutW;
+          var tagAreaUtil = sheetArea > 0 ? Math.min(100, totalTagArea / sheetArea * 100) : 0;
+          var wastePct = Math.max(0, 100 - tagAreaUtil);
 
-        var balanceScore = Math.min(ev.rows, ev.cols) > 0
-          ? Math.round((Math.min(ev.rows, ev.cols) / Math.max(ev.rows, ev.cols)) * 100)
-          : 0;
+          var k = tagL + 'x' + tagW + '|' + ori.label + '|' + evResult.rows + 'x' + evResult.cols + '|' + ni + 'x' + mi + (strategy === 'corner-fit' ? '_corner' : '');
+          if (seen[k]) return;
+          seen[k] = true;
 
-        candidates.push({
-          TL: tagL, TW: tagW,
-          n: ni, m: mi,
-          pieceL: pL, pieceW: pW,
-          tagsRows: ev.rows, tagsCols: ev.cols,
-          tagsPerPieceNominal: tagsPerPiece,
-          totalTagsPerSheet: totalTags,
-          reclaimedTags: ev.reclaimed * totalPieces,
-          leftoverL: ev.leftoverL, leftoverW: ev.leftoverW,
-          totalPieces: totalPieces,
-          sheetsNeeded: sheetsNeeded,
-          wastePct: Math.min(100, wastePct),
-          utilization: Math.min(100, tagAreaUtil),
-          feedMode: feedLabel,
-          tagDesc: ori.label + ' ' + ni + 'x' + mi,
-          pieceDesc: lpFmt(pL) + 'x' + lpFmt(pW),
-          balanceScore: balanceScore,
-          optimization: {
-            baseTags: tagsPerPiece,
-            addedRows: ev.addedRows, addedCols: ev.addedCols,
-            rotAdditions: ev.rotAdditions, rotColCount: ev.rotColCount, rotRowCount: ev.rotRowCount,
-            finalTags: effectiveTagsPerPiece,
-            mainRows: ev.rows, mainCols: ev.cols,
-            renderRows: ev.rows, renderCols: ev.cols,
+          var balanceScore = Math.min(evResult.rows, evResult.cols) > 0
+            ? Math.round((Math.min(evResult.rows, evResult.cols) / Math.max(evResult.rows, evResult.cols)) * 100)
+            : 0;
+
+          candidates.push({
+            TL: tagL, TW: tagW,
+            n: ni, m: mi,
+            pieceL: pL, pieceW: pW,
+            tagsRows: evResult.rows, tagsCols: evResult.cols,
+            tagsPerPieceNominal: tagsPerPiece,
+            totalTagsPerSheet: totalTags,
+            reclaimedTags: evResult.reclaimed * totalPieces,
+            leftoverL: evResult.leftoverL, leftoverW: evResult.leftoverW,
+            totalPieces: totalPieces,
+            sheetsNeeded: sheetsNeeded,
+            wastePct: Math.min(100, wastePct),
+            utilization: Math.min(100, tagAreaUtil),
+            feedMode: feedLabel,
+            tagDesc: ori.label + ' ' + ni + 'x' + mi + (strategy === 'corner-fit' ? ' corner-fit' : ''),
+            pieceDesc: lpFmt(pL) + 'x' + lpFmt(pW),
             balanceScore: balanceScore,
-            hasExtra: ev.reclaimed > 0,
-            isTagRotated: ori.label === 'rotated',
-            reclaimedTags: ev.reclaimed,
-          },
-        });
+            optimization: {
+              baseTags: tagsPerPiece,
+              addedRows: evResult.addedRows, addedCols: evResult.addedCols,
+              rotAdditions: evResult.rotAdditions, rotColCount: evResult.rotColCount, rotRowCount: evResult.rotRowCount,
+              finalTags: effectiveTagsPerPiece,
+              mainRows: evResult.rows, mainCols: evResult.cols,
+              renderRows: evResult.rows, renderCols: evResult.cols,
+              balanceScore: balanceScore,
+              hasExtra: evResult.reclaimed > 0,
+              isTagRotated: ori.label === 'rotated',
+              reclaimedTags: evResult.reclaimed,
+              reclaimStrategy: strategy,
+            },
+          });
+        }
+
+        pushCandidate(ev, 'strip');
+
+        if (isHandFeed) {
+          var cf = evalCornerFitReclaim(pL, pW, ori.cutL, ori.cutW);
+          if (cf.reclaimed !== ev.reclaimed && cf.reclaimed > 0) {
+            pushCandidate(cf, 'corner-fit');
+          } else if (ev.reclaimed > 0) {
+            // also try even when reclaimed matches — corner-fit may have different leftover display
+            var isDiff = cf.rotAdditions !== ev.rotAdditions || cf.rotColCount !== ev.rotColCount || cf.rotRowCount !== ev.rotRowCount;
+            if (isDiff) {
+              pushCandidate(cf, 'corner-fit');
+            }
+          }
+        }
       }
     }
   }
