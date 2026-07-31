@@ -1009,6 +1009,11 @@ function TagCostingCalculator() {
     } catch (e) { return []; }
   }, [sheetL, sheetW, tagL, tagW, cuttingOverlapMM, insideMarginMM, orderQty, feedOffsetL, feedOffsetW, feedHandL, feedHandW, printMethod]);
 
+  // Reset alternative selection to Best (#0) whenever core layout inputs change
+  useEffect(function() {
+    setAltIdx(0);
+  }, [sheetL, sheetW, tagL, tagW, cuttingOverlapMM, insideMarginMM, feedOffsetL, feedOffsetW, feedHandL, feedHandW, printMethod]);
+
   var calc = useMemo(function() {
     try {
       var overlapIn = mm2in(cuttingOverlapMM);
