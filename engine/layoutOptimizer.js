@@ -299,7 +299,76 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
         }
       }
     }
+    
+    // Evaluate mixed strips for this orientation
+    evalMixedStrips({ label: ori.label, cutL: ori.cutL, cutW: ori.cutW });
   }
+
+  
+  function evalMixedStrips(ori) {
+    if (!isHandFeed) return;
+    for (var n = 1; n <= 8; n++) {
+      var pW = sheetW / n;
+      
+      var maxK = Math.floor((sheetL - 2 * marginIn) / ori.cutL);
+      for (var k = 1; k < maxK; k++) {
+        var stripAL = k * ori.cutL + 2 * marginIn;
+        var stripBL = sheetL - stripAL;
+        
+        if (!fitsFeed(stripAL, pW) || !meetsMinHandSize(stripAL, pW)) continue;
+        if (!fitsFeed(stripBL, pW) || !meetsMinHandSize(stripBL, pW)) continue;
+        
+        var tagsA = evalLayout(stripAL, pW, ori.cutL, ori.cutW);
+        var tagsB = evalLayout(stripBL, pW, ori.cutL, ori.cutW);
+        
+        if (tagsA.total > 0 && tagsB.total > 0) {
+          var fTagsA = tagsA.total + tagsA.reclaimed;
+          var fTagsB = tagsB.total + tagsB.reclaimed;
+          var totalTags = (fTagsA + fTagsB) * n;
+          var util = ((fTagsA + fTagsB) * tagCutL * tagCutW) / (sheetL * pW) * 100;
+          
+          candidates.push({
+            TL: tagL, TW: tagW, n: n, m: 2,
+            pieceL: sheetL, pieceW: pW,
+            isMixed: true,
+            strips: [
+              { L: stripAL, W: pW, rows: tagsA.rows, cols: tagsA.cols, count: n, tagsPerStrip: fTagsA },
+              { L: stripBL, W: pW, rows: tagsB.rows, cols: tagsB.cols, count: n, tagsPerStrip: fTagsB }
+            ],
+            tagsRows: tagsA.rows, tagsCols: tagsA.cols,
+            tagsPerPieceNominal: (tagsA.total + tagsB.total) / 2, // average
+            totalTagsPerSheet: totalTags,
+            reclaimedTags: (tagsA.reclaimed + tagsB.reclaimed) * n,
+            leftoverL: Math.max(tagsA.leftoverL, tagsB.leftoverL),
+            leftoverW: Math.max(tagsA.leftoverW, tagsB.leftoverW),
+            totalPieces: n * 2,
+            sheetsNeeded: orderQty > 0 ? Math.ceil(orderQty / totalTags) : 0,
+            wastePct: Math.max(0, 100 - util),
+            utilization: Math.min(100, util),
+            feedMode: feedLabel,
+            tagDesc: ori.label + ' mixed strips',
+            pieceDesc: 'Mixed',
+            balanceScore: Math.min(tagsA.balanceScore || 100, tagsB.balanceScore || 100),
+            optimization: {
+              baseTags: (tagsA.total + tagsB.total) / 2,
+              addedRows: 0, addedCols: 0,
+              rotAdditions: (tagsA.rotAdditions + tagsB.rotAdditions) / 2,
+              rotColCount: (tagsA.rotColCount + tagsB.rotColCount) / 2,
+              rotRowCount: (tagsA.rotRowCount + tagsB.rotRowCount) / 2,
+              finalTags: (fTagsA + fTagsB) / 2,
+              mainRows: tagsA.rows, mainCols: tagsA.cols,
+              renderRows: tagsA.rows, renderCols: tagsA.cols,
+              balanceScore: 100, hasExtra: false,
+              isTagRotated: ori.label === 'rotated',
+              reclaimedTags: (tagsA.reclaimed + tagsB.reclaimed) / 2,
+              reclaimStrategy: 'strip',
+            }
+          });
+        }
+      }
+    }
+  }
+
 
   if (candidates.length === 0) {
     var fallbackSizes = [[sheetL, sheetW], [sheetW, sheetL]];
@@ -350,7 +419,17 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
   }
 
   scoreCandidates(deduped);
+  if (typeof analyzeProduction === 'function') {
+    for (var j = 0; j < deduped.length; j++) {
+      deduped[j].production = analyzeProduction(deduped[j], sheetL, sheetW);
+    }
+  }
   deduped.sort(function(a, b) {
+    if (a.production && b.production) {
+      if (Math.abs(a.production.productionScore - b.production.productionScore) > 3) {
+        return b.production.productionScore - a.production.productionScore;
+      }
+    }
     if (a.totalTagsPerSheet !== b.totalTagsPerSheet) return b.totalTagsPerSheet - a.totalTagsPerSheet;
     if (a.sheetsNeeded !== b.sheetsNeeded) return a.sheetsNeeded - b.sheetsNeeded;
     var aArea = a.pieceL * a.pieceW, bArea = b.pieceL * b.pieceW;
@@ -426,50 +505,12 @@ function scoreCandidates(candidates) {
 
 function assignReasons(candidates, orderQty) {
   if (candidates.length === 0) return;
-
-  function sortBy(fn, asc) {
-    var sorted = candidates.slice(0);
-    sorted.sort(function(a, b) { return asc ? fn(a) - fn(b) : fn(b) - fn(a); });
-    return sorted[0];
-  }
-
-  var bestTags = sortBy(function(c) { return c.totalTagsPerSheet; }, false);
-  var bestWaste = sortBy(function(c) { return c.wastePct; }, true);
-  var bestSheets = sortBy(function(c) { return c.sheetsNeeded; }, true);
-  var bestUtil = sortBy(function(c) { return c.utilization; }, false);
-  var bestPiece = sortBy(function(c) { return c.pieceL * c.pieceW; }, false);
-  var bestHandling = sortBy(function(c) { return c.totalPieces; }, true);
-
-  var taken = {};
-
   for (var i = 0; i < candidates.length; i++) {
     var c = candidates[i];
-    var reasons = [];
-
-    if (c === bestTags && !taken.tags) { reasons.push('Highest output'); taken.tags = true; }
-    if (c === bestWaste && !taken.waste) { reasons.push('Best material usage'); taken.waste = true; }
-    if (c === bestSheets && !taken.sheets) { reasons.push('Fewest sheets'); taken.sheets = true; }
-    if (c === bestUtil && !taken.util) { reasons.push('Best utilization'); taken.util = true; }
-    if (c === bestPiece && !taken.piece) { reasons.push('Largest piece'); taken.piece = true; }
-    if (c === bestHandling && !taken.handling) { reasons.push('Fewest operations'); taken.handling = true; }
-
-    if (reasons.length === 0 && i === 0) {
-      var r = [];
-      r.push('Highest output');
-      if (c === bestPiece) r.push('Largest piece');
-      if (c === bestHandling) r.push('Fewest operations');
-      if (c.balanceScore >= 90) r.push('Balanced layout');
-      if (r.length > 1) reasons = r;
-      else reasons.push('Best overall');
+    if (c.production && c.production.whySelected) {
+      c.reasons = c.production.whySelected;
+    } else {
+      c.reasons = ['Best overall'];
     }
-    if (reasons.length === 0) {
-      if (c.tagsPerPieceNominal >= 8 && c.wastePct < 15) reasons.push('Good balance');
-      else if (c.wastePct < 10) reasons.push('Low waste');
-      else if (c.totalTagsPerSheet > 50) reasons.push('High output');
-      else if (c.pieceL * c.pieceW > 300) reasons.push('Large piece');
-      else reasons.push('Valid alternative');
-    }
-
-    c.reasons = reasons;
   }
 }

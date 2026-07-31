@@ -25,6 +25,7 @@
 <script src="engine/rulesEngine.js?v=2"></script>
 
 <script src="engine/optimizer.js?v=2"></script>
+<script src="engine/productionAnalyzer.js?v=2"></script>
 <script src="engine/layoutOptimizer.js?v=2"></script>
 
 <script src="engine/wasteEngine.js?v=2"></script>
@@ -278,9 +279,15 @@ function LayoutPreview(props) {
                 var maxX = startOriginX;
                 var maxY = startOriginY;
 
-                Array.from({ length: dM }).forEach(function(_, row) {
+                var isMixedCandidate = !!(props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0);
+                var dM_render = isMixedCandidate ? props.selectedC.strips.length : dM;
+
+                Array.from({ length: dM_render }).forEach(function(_, row) {
                   var currX = startOriginX;
-                  var maxRowHeight = ph;
+                  var strip = isMixedCandidate ? props.selectedC.strips[row] : null;
+                  var rowPh = isMixedCandidate ? ((rotated ? strip.L : strip.W) * sc) : ph;
+                  var rowPw = isMixedCandidate ? ((rotated ? strip.W : strip.L) * sc) : pw;
+                  var maxRowHeight = rowPh;
 
                   Array.from({ length: dN }).forEach(function(_, col) {
                     var px = currX;
@@ -291,10 +298,13 @@ function LayoutPreview(props) {
                     var pitchY = th + 2 * overlapSvg;
                     var pIdx = row * dN + col + 1;
 
-                    var usableW = Math.max(0, pw - 2 * marginSvg);
-                    var usableH = Math.max(0, ph - 2 * marginSvg);
-                    var gridW = svgTR > 0 ? svgTR * tw + (svgTR - 1) * 2 * overlapSvg : 0;
-                    var gridH = svgTC > 0 ? svgTC * th + (svgTC - 1) * 2 * overlapSvg : 0;
+                    var curSvgTR = isMixedCandidate ? (rotated ? strip.cols : strip.rows) : svgTR;
+                    var curSvgTC = isMixedCandidate ? (rotated ? strip.rows : strip.cols) : svgTC;
+
+                    var usableW = Math.max(0, rowPw - 2 * marginSvg);
+                    var usableH = Math.max(0, rowPh - 2 * marginSvg);
+                    var gridW = curSvgTR > 0 ? curSvgTR * tw + (curSvgTR - 1) * 2 * overlapSvg : 0;
+                    var gridH = curSvgTC > 0 ? curSvgTC * th + (curSvgTC - 1) * 2 * overlapSvg : 0;
 
                     var hasExtra = Number(props.reclaimedTags) > 0 || rotRowCount > 0 || rotColCount > 0 || cornerCount > 0;
                     var isCornerFit = isCornerFitCandidate;
@@ -322,11 +332,11 @@ function LayoutPreview(props) {
 
                     // Piece extension: strip extends in one axis; corner-fit extends in both
                     var extPw = hasCornerRm
-                      ? Math.max(pw, (lastTagEndX + cTW_svg + marginSvg) - px)
-                      : Math.max(pw, (lastTagEndX + Math.max(recClaimW, 0) + marginSvg) - px);
+                      ? Math.max(rowPw, (lastTagEndX + cTW_svg + marginSvg) - px)
+                      : Math.max(rowPw, (lastTagEndX + Math.max(recClaimW, 0) + marginSvg) - px);
                     var extPh = hasCornerRm
-                      ? Math.max(ph, (lastTagEndY + cTH_svg + marginSvg) - py)
-                      : Math.max(ph, (lastTagEndY + recClaimH + marginSvg) - py);
+                      ? Math.max(rowPh, (lastTagEndY + cTH_svg + marginSvg) - py)
+                      : Math.max(rowPh, (lastTagEndY + recClaimH + marginSvg) - py);
 
                     var leftStrip = Math.max(0, firstTagX - px);
                     var rightStrip = Math.max(0, px + extPw - (firstTagX + contentW));
@@ -358,7 +368,7 @@ function LayoutPreview(props) {
                     if (currX > maxX) maxX = currX;
                     if (py + extPh > maxY) maxY = py + extPh;
 
-                    var totalTagsPerPiece = svgTR * svgTC + btmReclaimH + rgtReclaimN + (hasCornerRm ? 1 : 0);
+                    var totalTagsPerPiece = curSvgTR * curSvgTC + btmReclaimH + rgtReclaimN + (hasCornerRm ? 1 : 0);
                     var pieceIdx = row * dN + col;
                     try { console.log("[RECLAIM-DIAG] piece " + (pieceIdx+1) + " (row=" + row + " col=" + col + ") btmReclaimH=" + btmReclaimH + " rgtReclaimN=" + rgtReclaimN + " contentW=" + contentW.toFixed(1) + " contentH=" + contentH.toFixed(1) + " firstTagX=" + firstTagX.toFixed(1) + " firstTagY=" + firstTagY.toFixed(1) + " rcx(rgt)=" + (lastTagEndX).toFixed(1) + " rcy(rgt)=" + firstTagY.toFixed(1) + " rcx(btm)=" + firstTagX.toFixed(1) + " rcy(btm)=" + (lastTagEndY).toFixed(1) + " tw=" + tw.toFixed(1) + " th=" + th.toFixed(1)); } catch(e) {}
 
@@ -377,15 +387,18 @@ function LayoutPreview(props) {
                         </>}
                         {simpleMode ? (
                           <g>
-                            {svgTC * svgTR + btmReclaimH + rgtReclaimN > 1 && <text x={px + pw / 2} y={py + ph / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.max(6, Math.min(10, sc * 0.5))} fill="#888" fontFamily="'Courier New',monospace">{svgTC * svgTR + btmReclaimH + rgtReclaimN} tags</text>}
+                            {curSvgTC * curSvgTR + btmReclaimH + rgtReclaimN > 1 && <text x={px + rowPw / 2} y={py + rowPh / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.max(6, Math.min(10, sc * 0.5))} fill="#888" fontFamily="'Courier New',monospace">{curSvgTC * curSvgTR + btmReclaimH + rgtReclaimN} tags</text>}
                           </g>
                         ) : (
                         <g>
-                          {Array.from({ length: svgTC }).map(function(_, tr) {
-                            return Array.from({ length: svgTR }).map(function(_, tc) {
+                          {Array.from({ length: curSvgTC }).map(function(_, tr) {
+                            return Array.from({ length: curSvgTR }).map(function(_, tc) {
                               var tx = firstTagX + tc * pitchX;
                               var ty = firstTagY + tr * pitchY;
-                              var tagNum = pieceIdx * totalTagsPerPiece + tr * svgTR + tc + 1;
+                              var baseTagCount = isMixedCandidate ? (row === 0 ? 0 : props.selectedC.strips[0].tagsPerStrip * dN) : (pieceIdx * totalTagsPerPiece);
+                              var tagNum = baseTagCount + (isMixedCandidate ? (col * totalTagsPerPiece) : 0) + tr * curSvgTR + tc + 1;
+                              if (!isMixedCandidate) tagNum = pieceIdx * totalTagsPerPiece + tr * curSvgTR + tc + 1;
+                              
                               var tagId = "T" + String(tagNum);
                               var showId = tw > 14 && th > 10;
                               var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
@@ -409,7 +422,7 @@ function LayoutPreview(props) {
                         Array.from({ length: btmReclaimH }).forEach(function(_, i) {
                           var rcx = firstTagX + i * (tw + 2 * overlapSvg);
                           var rcy = lastTagEndY;
-                          var tagNum = pieceIdx * totalTagsPerPiece + svgTR * svgTC + i + 1;
+                          var tagNum = pieceIdx * totalTagsPerPiece + curSvgTR * curSvgTC + i + 1;
                           var tagId = "T" + String(tagNum);
                           var showId = tw > 14 && th > 10;
                           var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
@@ -429,7 +442,7 @@ function LayoutPreview(props) {
                         Array.from({ length: rgtReclaimN }).forEach(function(_, i) {
                           var rcx = lastTagEndX;
                           var rcy = firstTagY + i * (tw + 2 * overlapSvg);
-                          var tagNum = pieceIdx * totalTagsPerPiece + svgTR * svgTC + btmReclaimH + i + 1;
+                          var tagNum = pieceIdx * totalTagsPerPiece + curSvgTR * curSvgTC + btmReclaimH + i + 1;
                           var tagId = "T" + String(tagNum);
                           var showId = th > 14 && tw > 10;
                           var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
@@ -520,8 +533,8 @@ function LayoutPreview(props) {
               <div className="lp-info-section-title">Production Info</div>
               <div className="lp-info-k"><div className="lp-info-label">Sheet</div></div>
               <div className="lp-info-kv"><span className="lp-info-k">Paper Size</span><span className="lp-info-v">{lpFmt(sL)} × {lpFmt(sW)}"</span></div>
-              <div className="lp-info-kv"><span className="lp-info-k">Pieces</span><span className="lp-info-v">{n} × {m} = {n * m}</span></div>
-              <div className="lp-info-kv"><span className="lp-info-k">Piece Size</span><span className="lp-info-v">{lpFmt(pL)} × {lpFmt(pW)}"</span></div>
+              <div className="lp-info-kv"><span className="lp-info-k">Pieces</span><span className="lp-info-v">{props.selectedC && props.selectedC.isMixed ? props.selectedC.strips.map(function(s){return s.count;}).reduce(function(a,b){return a+b},0) : n * m}</span></div>
+              <div className="lp-info-kv"><span className="lp-info-k">Piece Size</span><span className="lp-info-v">{props.selectedC && props.selectedC.isMixed ? "Mixed Strips" : lpFmt(pL) + ' × ' + lpFmt(pW) + '"'}</span></div>
               <div className="lp-info-k" style={{marginTop:"6px"}}><div className="lp-info-label">Tag</div></div>
               <div className="lp-info-kv"><span className="lp-info-k">Tag Size</span><span className="lp-info-v">{lpFmt(tL)} × {lpFmt(tW)}"</span></div>
               <div className="lp-info-kv"><span className="lp-info-k">Rows</span><span className="lp-info-v">{svgTC}</span></div>
@@ -1280,10 +1293,10 @@ function TagCostingCalculator() {
                       <button key={i} className={"lo-alt-btn" + (safeAltIdx === i ? " lo-alt-active" : "") + (i === 0 ? " lo-alt-best" : "")}
                         onClick={function() { setAltIdx(i); }}>
                         <span className="lo-alt-label">{i === 0 ? "BEST" : "Alt " + i}</span>
+                        <span className="lo-alt-stat" style={{ color: "#2e7d32", fontWeight: 600 }}>{c.production ? Math.round(c.production.productionScore) : 0} <small>Score</small></span>
                         <span className="lo-alt-stat">{num(c.totalTagsPerSheet, 0)} <small>tags/sht</small></span>
                         <span className="lo-alt-stat">{c.wastePct.toFixed(1)}% <small>waste</small></span>
-                        <span className="lo-alt-stat">{c.utilization.toFixed(1)}% <small>util</small></span>
-                        <span className="lo-alt-stat">{lpFmt(c.pieceL)}×{lpFmt(c.pieceW)} <small>piece</small></span>
+                        <span className="lo-alt-stat">{c.production ? c.production.guillotineCuts : '?'} <small>cuts</small></span>
                         <span className="lo-alt-reason">{c.reasons.join(', ')}</span>
                       </button>
                     );
@@ -1295,6 +1308,7 @@ function TagCostingCalculator() {
               ) : (
               <div style={{ marginTop: layoutCandidates && layoutCandidates.length > 1 ? 12 : 0 }}>
                 <MemoLayoutPreview title="Layout Preview"
+                  selectedC={selectedC}
                   sheetLength={sheetL} sheetWidth={sheetW}
                   pieceLength={selectedC ? selectedC.pieceL : calc.pieceL}
                   pieceWidth={selectedC ? selectedC.pieceW : calc.pieceW}
@@ -1319,6 +1333,37 @@ function TagCostingCalculator() {
                   orientation={calc.isRotated ? "Tag rotated 90deg" : "Tag as entered"}
                   totalSheets={calc.sheetsNeeded} quantity={orderQty}
                   feedDirection={printMethod === "offset" ? "Offset press feed" : "Hand-print feed"} />
+                {selectedC && selectedC.production && (
+                  <div className="production-panel" style={{ marginTop: 12, padding: 12, background: "#f8f9fa", border: "1px solid #ddd", fontSize: 13, borderRadius: 4 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8 }}>Production Analysis (Score: {Math.round(selectedC.production.productionScore)})</div>
+                    <div style={{ display: "flex", gap: 20 }}>
+                      <div>
+                        <strong>Piece Types ({selectedC.production.uniquePieceTypes}):</strong>
+                        <ul style={{ margin: "4px 0", paddingLeft: 20 }}>
+                          {selectedC.production.pieceTypes.map(function(pt, i) {
+                            return <li key={i}>{pt.count} × {pt.label} ({pt.sizeDesc}) — {pt.tagsPerPiece} tags</li>;
+                          })}
+                        </ul>
+                      </div>
+                      <div>
+                        <strong>Production Stats:</strong>
+                        <ul style={{ margin: "4px 0", paddingLeft: 20 }}>
+                          <li>Guillotine Cuts: {selectedC.production.guillotineCuts}</li>
+                          <li>Handling: {selectedC.production.handlingLabel}</li>
+                          <li>Paper Utilization: {selectedC.utilization.toFixed(1)}%</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <strong>Why Selected:</strong>
+                        <ul style={{ margin: "4px 0", paddingLeft: 20, color: "#2e7d32" }}>
+                          {selectedC.production.whySelected.map(function(reason, i) {
+                            return <li key={i}>✔ {reason}</li>;
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               )}
             </div>}
