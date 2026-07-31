@@ -557,7 +557,7 @@ function LayoutPreview(props) {
               <div className="lp-info-kv"><span className="lp-info-k">Generated</span><span className="lp-info-v">{dateStr}</span></div>
               <div className="lp-info-kv"><span className="lp-info-k">Orientation</span><span className="lp-info-v">Landscape</span></div>
               <div className="lp-info-kv"><span className="lp-info-k">Feed</span><span className="lp-info-v">{props.feedDirection || "Offset"}</span></div>
-              {isHandFeed && rotAdditions > 0 && (<div className="lp-info-kv"><span className="lp-info-k">Reclaim</span><span className="lp-info-v">{isCornerFit ? 'Corner-fit' : 'Strip'} +{rotAdditions}</span></div>)}
+              {isHandFeed && rotAdditions > 0 && (<div className="lp-info-kv"><span className="lp-info-k">Reclaim</span><span className="lp-info-v">{isCornerFitCandidate ? 'Corner-fit' : 'Strip'} +{rotAdditions}</span></div>)}
               {isHandFeed && rotAdditions === 0 && (<div className="lp-info-kv"><span className="lp-info-k">Reclaim</span><span className="lp-info-v" style={{color:"#999"}}>None</span></div>)}
               {!isHandFeed && (<div className="lp-info-kv"><span className="lp-info-k">Reclaim</span><span className="lp-info-v" style={{color:"#999"}}>Offset — not applicable</span></div>)}
             </div>
@@ -1022,6 +1022,27 @@ function TagCostingCalculator() {
     } catch (e) { return []; }
   }, [sheetL, sheetW, tagL, tagW, cuttingOverlapMM, insideMarginMM, orderQty, feedOffsetL, feedOffsetW, feedHandL, feedHandW, printMethod]);
 
+  var suggestedLayout = useMemo(function() {
+    if (!layoutCandidates || layoutCandidates.length === 0) return null;
+    var best = layoutCandidates[0];
+    if (best.wastePct < 10) return null;
+
+    try {
+      var oIn = mm2in(Number(cuttingOverlapMM) || 0);
+      var mIn = mm2in(Number(insideMarginMM) || 0);
+      var fOff = printMethod === 'offset' ? [Number(feedOffsetL) || 0, Number(feedOffsetW) || 0] : [0, 0];
+      var fHand = printMethod === 'hand' ? [Number(feedHandL) || 0, Number(feedHandW) || 0] : [0, 0];
+      if (typeof generateSuggestions === 'function') {
+        return generateSuggestions(
+          Number(sheetL) || 0, Number(sheetW) || 0,
+          Number(tagL) || 0, Number(tagW) || 0,
+          oIn, mIn, Number(orderQty) + Math.floor(Number(orderQty) / 5000) * 200 || 0, fOff, fHand, best
+        );
+      }
+    } catch (e) {}
+    return null;
+  }, [layoutCandidates, sheetL, sheetW, tagL, tagW, cuttingOverlapMM, insideMarginMM, orderQty, feedOffsetL, feedOffsetW, feedHandL, feedHandW, printMethod]);
+
   // Reset alternative selection to Best (#0) whenever core layout inputs change
   useEffect(function() {
     setAltIdx(0);
@@ -1307,6 +1328,18 @@ function TagCostingCalculator() {
                 <div className="lo-no-layout">No manufacturable layout found for current machine.</div>
               ) : (
               <div style={{ marginTop: layoutCandidates && layoutCandidates.length > 1 ? 12 : 0 }}>
+                {suggestedLayout && (
+                  <div className="suggestion-banner" style={{ background: "#e3f2fd", border: "1px solid #bbdefb", padding: "12px 16px", borderRadius: 6, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ color: "#0d47a1", fontSize: 14 }}>
+                      <strong>💡 Pro Tip: Reduce Waste!</strong><br />
+                      Changing your tag size slightly to <strong>{suggestedLayout.tagL.toFixed(3)} × {suggestedLayout.tagW.toFixed(3)}"</strong> (-{suggestedLayout.dec.toFixed(3)}") will fit <strong>{suggestedLayout.tagsPerSheet} tags</strong> per sheet (up from {selectedC ? selectedC.totalTagsPerSheet : 0}), dropping waste to <strong>{suggestedLayout.wastePct.toFixed(1)}%</strong>.
+                    </div>
+                    <button style={{ background: "#1976d2", color: "white", border: "none", padding: "8px 16px", borderRadius: 4, cursor: "pointer", fontWeight: 600 }} onClick={function() {
+                      setTagL(suggestedLayout.tagL);
+                      setTagW(suggestedLayout.tagW);
+                    }}>Apply Suggestion</button>
+                  </div>
+                )}
                 <MemoLayoutPreview title="Layout Preview"
                   selectedC={selectedC}
                   sheetLength={sheetL} sheetWidth={sheetW}

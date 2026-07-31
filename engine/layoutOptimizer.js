@@ -514,3 +514,63 @@ function assignReasons(candidates, orderQty) {
     }
   }
 }
+
+function generateSuggestions(sheetL, sheetW, origTagL, origTagW, overlapIn, marginIn, orderQty, feedOffset, feedHand, currentBestCandidate) {
+  if (!currentBestCandidate || currentBestCandidate.totalTagsPerSheet === 0) return null;
+  
+  var origTags = currentBestCandidate.totalTagsPerSheet;
+  var bestSuggestion = null;
+  
+  // Test variations: decrement size by 0.025" up to 0.250"
+  var variations = [0.025, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20, 0.225, 0.25];
+  
+  // Suppress logs for the background variations
+  var originalLog = console.log;
+  var originalWarn = console.warn;
+  var originalDebug = console.debug;
+  var originalGroup = console.groupCollapsed;
+  var originalGroupEnd = console.groupEnd;
+  console.log = function() {};
+  console.warn = function() {};
+  console.debug = function() {};
+  console.groupCollapsed = function() {};
+  console.groupEnd = function() {};
+  
+  try {
+    for (var i = 0; i < variations.length; i++) {
+      var dec = variations[i];
+      var testL = Math.max(0.5, origTagL - dec);
+      var testW = Math.max(0.5, origTagW - dec);
+      
+      var cands = generateAllLayouts(sheetL, sheetW, testL, testW, overlapIn, marginIn, orderQty, feedOffset, feedHand);
+      
+      if (cands && cands.length > 0) {
+        var top = cands[0];
+        if (top.totalTagsPerSheet > origTags) {
+          if (!bestSuggestion || top.totalTagsPerSheet > bestSuggestion.tagsPerSheet || (top.totalTagsPerSheet === bestSuggestion.tagsPerSheet && dec < bestSuggestion.dec)) {
+            bestSuggestion = {
+              tagL: testL,
+              tagW: testW,
+              dec: dec,
+              tagsPerSheet: top.totalTagsPerSheet,
+              wastePct: top.wastePct,
+              utilization: top.utilization,
+              pieceL: top.pieceL,
+              pieceW: top.pieceW,
+              pieces: top.totalPieces
+            };
+          }
+        }
+      }
+    }
+  } catch (e) {
+  } finally {
+    console.log = originalLog;
+    console.warn = originalWarn;
+    console.debug = originalDebug;
+    console.groupCollapsed = originalGroup;
+    console.groupEnd = originalGroupEnd;
+  }
+  
+  return bestSuggestion;
+}

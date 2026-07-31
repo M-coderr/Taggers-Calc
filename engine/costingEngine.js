@@ -68,10 +68,27 @@ function computeCosts(layout, params) {
     }
   }
 
-  var pieceAreaSqIn = r.pieceL * r.pieceW;
-  var laminationCost = lamination ? pieceAreaSqIn * totalPieces * PROCESS_RATES.lamination.ratePerSqIn : 0;
+  var laminationAreaSqIn = 0;
+  var maxPieceL = r.pieceL;
+  var maxPieceW = r.pieceW;
 
-  var tier = pieceTier(r.pieceL, r.pieceW);
+  if (r.isMixed && r.strips && r.strips.length > 0) {
+    maxPieceL = 0;
+    maxPieceW = r.pieceW;
+    for (var i = 0; i < r.strips.length; i++) {
+      var st = r.strips[i];
+      laminationAreaSqIn += (st.L * st.W * st.count * sheetsNeeded);
+      if (st.L > maxPieceL) maxPieceL = st.L;
+      if (st.W > maxPieceW) maxPieceW = st.W;
+    }
+  } else {
+    laminationAreaSqIn = r.pieceL * r.pieceW * totalPieces;
+  }
+
+  var pieceAreaSqIn = r.pieceL * r.pieceW; // keep for return value backwards-compatibility
+  var laminationCost = lamination ? laminationAreaSqIn * PROCESS_RATES.lamination.ratePerSqIn : 0;
+
+  var tier = pieceTier(maxPieceL, maxPieceW);
   var dieSlabs = computeSlabs(totalPieces);
   var dieRunningCost = totalPieces > 0 ? tier.runRate * dieSlabs : 0;
   var dieMakingCost = totalPieces > 0 ? tier.dieCost : 0;
