@@ -19,16 +19,21 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
 
   var MIN_HAND_PIECE = 6;
   var MIN_HAND_PIECE_LONG = 9;
+  var MIN_OFFSET_PIECE = 12;
+  var MIN_OFFSET_PIECE_LONG = 18;
 
   function fitsFeed(pl, pw) {
     return (pl <= feedL + 0.01 && pw <= feedW + 0.01) || (pl <= feedW + 0.01 && pw <= feedL + 0.01);
   }
 
-  function meetsMinHandSize(pl, pw) {
-    if (!isHandFeed) return true;
+  function meetsMinSize(pl, pw) {
     var short = Math.min(pl, pw);
     var long = Math.max(pl, pw);
-    return short >= MIN_HAND_PIECE && long >= MIN_HAND_PIECE_LONG;
+    if (isHandFeed) {
+      return short >= MIN_HAND_PIECE && long >= MIN_HAND_PIECE_LONG;
+    } else {
+      return short >= MIN_OFFSET_PIECE && long >= MIN_OFFSET_PIECE_LONG;
+    }
   }
 
   var tagCutL = tagL + 2 * overlapIn;
@@ -148,8 +153,8 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           rejectLog.push({ piece: lpFmt(pL) + 'x' + lpFmt(pW) + ' (' + ni + 'x' + mi + ')', reason: 'Exceeds feed' });
           continue;
         }
-        if (!meetsMinHandSize(pL, pW)) {
-          rejectLog.push({ piece: lpFmt(pL) + 'x' + lpFmt(pW) + ' (' + ni + 'x' + mi + ')', reason: 'Below min hand print size 6x9' });
+        if (!meetsMinSize(pL, pW)) {
+          rejectLog.push({ piece: lpFmt(pL) + 'x' + lpFmt(pW) + ' (' + ni + 'x' + mi + ')', reason: 'Below min print size' });
           continue;
         }
 
@@ -194,11 +199,15 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           // Incremental per-piece sheet-fit validation along L (columns of pieces)
           var validRotRowCount = 0;
           var totalL = 0;
+          var cornerFitValidL = false;
           for (var c = 0; c < mi; c++) {
-            var trialExtPL = (c < rotRowCount || (isCornerFit && c < 1 && cTagL > 0)) ? extPL : pL;
-            if (totalL + trialExtPL <= sheetL + 0.01) {
+            var isCornerL = isCornerFit && c < 1 && cTagL > 0;
+            var trialExtPL = (c < rotRowCount || isCornerL) ? extPL : pL;
+            var spaceNeededL = (mi - c - 1) * pL;
+            if (totalL + trialExtPL + spaceNeededL <= sheetL + 0.01) {
               totalL += trialExtPL;
               if (c < rotRowCount) validRotRowCount++;
+              if (isCornerL) cornerFitValidL = true;
             } else {
               totalL += pL;
             }
@@ -207,11 +216,15 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           // Incremental per-piece sheet-fit validation along W (rows of pieces)
           var validRotColCount = 0;
           var totalW = 0;
+          var cornerFitValidW = false;
           for (var r = 0; r < ni; r++) {
-            var trialExtPW = (r < rotColCount || (isCornerFit && r < 1 && cTagW > 0)) ? extPW : pW;
-            if (totalW + trialExtPW <= sheetW + 0.01) {
+            var isCornerW = isCornerFit && r < 1 && cTagW > 0;
+            var trialExtPW = (r < rotColCount || isCornerW) ? extPW : pW;
+            var spaceNeededW = (ni - r - 1) * pW;
+            if (totalW + trialExtPW + spaceNeededW <= sheetW + 0.01) {
               totalW += trialExtPW;
               if (r < rotColCount) validRotColCount++;
+              if (isCornerW) cornerFitValidW = true;
             } else {
               totalW += pW;
             }
@@ -224,14 +237,17 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           }
 
           // For corner-fit: validatedReclaimed = 1 per piece if the pocket fits, else 0
-          var cornerFitValid = isCornerFit && cTagL > 0 && totalL <= sheetL + 0.01 && totalW <= sheetW + 0.01;
+          var cornerFitValid = isCornerFit && cTagL > 0 && cornerFitValidL && cornerFitValidW;
 
           var cornerReclaimed = cornerFitValid ? 1 : 0;
           var validatedReclaimed = isCornerFit ? cornerReclaimed : (validRotRowCount + validRotColCount);
           var finalStrategy = (validatedReclaimed > 0) ? strategy : 'none';
           var effectiveTagsPerPiece = tagsPerPiece + validatedReclaimed;
           var totalTags = effectiveTagsPerPiece * totalPieces;
-          if (totalTags < 1) return;
+          if (totalTags < 1) {
+            console.log("REJECT: totalTags < 1", tagsPerPiece, validatedReclaimed);
+            return;
+          }
 
           var sheetArea = sheetL * sheetW;
           var sheetsNeeded = Math.ceil(orderQty / totalTags);
@@ -240,8 +256,12 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           var wastePct = Math.max(0, 100 - tagAreaUtil);
 
           var k = tagL + 'x' + tagW + '|' + ori.label + '|' + evResult.rows + 'x' + evResult.cols + '|' + ni + 'x' + mi + (finalStrategy === 'corner-fit' ? '_corner' : '');
-          if (seen[k]) return;
+          if (seen[k]) {
+             // duplicate
+             return;
+          }
           seen[k] = true;
+          // console.log("PUSHING CANDIDATE", k);
 
           var balanceScore = Math.min(evResult.rows, evResult.cols) > 0
             ? Math.round((Math.min(evResult.rows, evResult.cols) / Math.max(evResult.rows, evResult.cols)) * 100)
@@ -315,8 +335,8 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
         var stripAL = k * ori.cutL + 2 * marginIn;
         var stripBL = sheetL - stripAL;
         
-        if (!fitsFeed(stripAL, pW) || !meetsMinHandSize(stripAL, pW)) continue;
-        if (!fitsFeed(stripBL, pW) || !meetsMinHandSize(stripBL, pW)) continue;
+        if (!fitsFeed(stripAL, pW) || !meetsMinSize(stripAL, pW)) continue;
+        if (!fitsFeed(stripBL, pW) || !meetsMinSize(stripBL, pW)) continue;
         
         var tagsA = evalLayout(stripAL, pW, ori.cutL, ori.cutW);
         var tagsB = evalLayout(stripBL, pW, ori.cutL, ori.cutW);
@@ -374,7 +394,7 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
     var fallbackSizes = [[sheetL, sheetW], [sheetW, sheetL]];
     for (var fi = 0; fi < fallbackSizes.length; fi++) {
       var pL = fallbackSizes[fi][0], pW = fallbackSizes[fi][1];
-      if (fitsFeed(pL, pW) && meetsMinHandSize(pL, pW)) {
+      if (fitsFeed(pL, pW) && meetsMinSize(pL, pW)) {
         var ev = evalLayout(pL, pW, tagCutL, tagCutW);
         if (ev.rows >= 1 && ev.cols >= 1) {
           var fTags = ev.total + ev.reclaimed;
@@ -420,8 +440,12 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
 
   scoreCandidates(deduped);
   if (typeof analyzeProduction === 'function') {
-    for (var j = 0; j < deduped.length; j++) {
-      deduped[j].production = analyzeProduction(deduped[j], sheetL, sheetW);
+    try {
+      for (var j = 0; j < deduped.length; j++) {
+        deduped[j].production = analyzeProduction(deduped[j], sheetL, sheetW);
+      }
+    } catch (e) {
+      console.error("ANALYZE PRODUCTION ERROR:", e);
     }
   }
   deduped.sort(function(a, b) {

@@ -432,7 +432,7 @@ function TagCostingCalculator() {
   function addAgent() {
     var username = newAgentUsername.trim(), name = newAgentName.trim();
     if (!username || !name) { setAgentFormError("Username and name are required."); return; }
-    if (users.some(function (u) { return u.username === username; })) { setAgentFormError("That username already exists."); return; }
+    if (users.some(function (u) { return String(u.username || "").toLowerCase() === username.toLowerCase(); })) { setAgentFormError("That username already exists."); return; }
     setAgentFormError("");
     persistUsers(users.concat([{ username: username, password: newAgentPassword || "", role: "AGENT", name: name, margin: Number(newAgentMargin) || 0 }]));
     setNewAgentUsername(""); setNewAgentPassword(""); setNewAgentName(""); setNewAgentMargin(30);
@@ -444,14 +444,52 @@ function TagCostingCalculator() {
     var username = loginUsername.trim(), password = loginPassword.trim();
     if (!username || !password) { setLoginError("Please enter username and password"); return; }
     setLoginLoading(true); setLoginError("");
+    var lowerUser = username.toLowerCase();
     try {
-      var result = await jsonpRequest({ action: "login", username: username, password: password });
-      if (!result.ok) throw new Error(result.error || "Login failed");
+      var result = null;
+      try {
+        result = await jsonpRequest({ action: "login", username: lowerUser, password: password });
+      } catch (err) {}
+
+      if (!result || !result.ok) {
+        try {
+          result = await jsonpRequest({ action: "login", username: username, password: password });
+        } catch (err) {}
+      }
+
+      if (!result || !result.ok) {
+        var localUsers = (users && users.length > 0) ? users : [];
+        if (localUsers.length === 0) {
+          try {
+            var cachedData = await fetchAllCached();
+            if (cachedData && cachedData.users) localUsers = cachedData.users;
+          } catch(e2) {}
+        }
+        var found = localUsers.find(function(u) {
+          var uUsername = String(u.username || "").trim().toLowerCase();
+          var uName = String(u.name || "").trim().toLowerCase();
+          var matchUser = (uUsername === lowerUser || uName === lowerUser);
+          var matchPass = String(u.password || "").trim() === password;
+          return matchUser && matchPass;
+        });
+        if (found) {
+          result = { ok: true, user: found };
+        }
+      }
+
+      if (!result || !result.ok) {
+        throw new Error((result && result.error) || "Invalid username or password");
+      }
+
       var user = result.user;
       var sessionData = { username: user.username, role: user.role, name: user.name, margin: user.margin };
       localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
       setSession(sessionData); setAppPhase("dashboard");
-    } catch (e) { setLoginError(e.message || "Login failed. Check your credentials."); } finally { setLoginLoading(false); }
+    } catch (e) {
+      setLoginError(e.message || "Login failed. Check your credentials.");
+    } finally {
+      setLoginLoading(false);
+    }
   }
   function handleLogout() { localStorage.removeItem(SESSION_KEY); setSession(null); setLoginUsername(""); setLoginPassword(""); setLoginError(""); setAppPhase("login"); }
 
@@ -617,13 +655,13 @@ function TagCostingCalculator() {
                   <Field label="Inside margin" hint="Minimum spacing kept around tags"><NumberInput value={insideMarginMM} onChange={setInsideMarginMM} min={0} suffix="mm/side" /></Field>
                 </div>
                 <div className="tc-auto-note"><Info /> Sheet cut into <strong>{num(calc.n, 0)} x {num(calc.m, 0)} = {num(calc.autoPiecesPerSheet, 0)} pieces</strong> ({num(calc.pieceL)}" x {num(calc.pieceW)}" each, to fit the {printMethod} machine). Each piece holds <strong>{num(calc.tagsRows, 0)} x {num(calc.tagsCols, 0)} = {num(calc.tagsPerPieceNominal, 0)} tags</strong>{calc.reclaimedTagsPerPiece > 0 ? <span> + <strong style={{color:"#2980b9"}}>{calc.reclaimedTagsPerPiece} reclaimed</strong> = <strong>{calc.tagsPerPieceNominal + calc.reclaimedTagsPerPiece}</strong> tags/piece</span> : ""} - {num(calc.totalTagsPerSheet, 0)} tags/sheet total.</div>
-                <div className="tc-field-hint" style={{ marginBottom: 10 }}>Inlap left over per piece: {num(calc.leftoverL)}" x {num(calc.leftoverW)}" (minimum required: {num(2 * calc.marginIn)}" x {num(2 * calc.marginIn)}"){printMethod === "offset" ? " - strip reclaiming available for hand print only" : ""}</div>
+                <div className="tc-field-hint" style={{ marginBottom: 10 }}>Inlap left over per piece: {num(calc.leftoverL)}" x {num(calc.leftoverW)}" (minimum required: {num(2 * calc.marginIn)}" x {num(2 * calc.marginIn)}"){printMethod === "offset" ? " - strip reclaiming available for screen print only" : ""}</div>
                 <button type="button" className={"tc-assump-toggle" + (showAdvancedLayout ? " open" : "")} style={{ marginTop: 0, marginBottom: 10 }} onClick={function () { setShowAdvancedLayout(function (s) { return !s; }); }}><ChevronDown /> {showAdvancedLayout ? "Hide" : "Show"} advanced layout options</button>
                 {showAdvancedLayout && (<div className="tc-override-box">
                   <div className="tc-field-hint" style={{ marginBottom: 10 }}>Max feed size - the largest piece each machine can take. Pieces are grouped as large as possible within this limit.</div>
                   <div className="tc-row"><Field label="Offset max feed"><NumberInput value={feedOffsetL} onChange={setFeedOffsetL} suffix="in" /></Field><Field label="x "><NumberInput value={feedOffsetW} onChange={setFeedOffsetW} suffix="in" /></Field></div>
-                  <div className="tc-row"><Field label="Hand print max feed"><NumberInput value={feedHandL} onChange={setFeedHandL} suffix="in" /></Field><Field label="x "><NumberInput value={feedHandW} onChange={setFeedHandW} suffix="in" /></Field></div>
-                  <div className="tc-field-hint">Minimum piece size for hand print: 6" x 9".</div>
+                  <div className="tc-row"><Field label="Screen print max feed"><NumberInput value={feedHandL} onChange={setFeedHandL} suffix="in" /></Field><Field label="x "><NumberInput value={feedHandW} onChange={setFeedHandW} suffix="in" /></Field></div>
+                  <div className="tc-field-hint">Minimum piece size for screen print: 6" x 9".</div>
                   <Toggle checked={overridePieces} onChange={setOverridePieces} onLabel="Overriding pieces per sheet" offLabel="Using app's suggested grouping" />
                   {overridePieces && <Field label="Pieces per sheet (manual)"><NumberInput value={manualPiecesPerSheet} onChange={setManualPiecesPerSheet} min={0} step={1} /></Field>}
                 </div>)}
@@ -631,7 +669,7 @@ function TagCostingCalculator() {
               <div className="tc-section-title"><Printer /> Printing</div>
               <div className="tc-choice-row">
                 <div className={"tc-choice" + (printMethod === "offset" ? " tc-choice-active" : "")} onClick={function () { setPrintMethod("offset"); }}>Offset</div>
-                <div className={"tc-choice" + (printMethod === "hand" ? " tc-choice-active" : "")} onClick={function () { setPrintMethod("hand"); }}>Hand print</div>
+                <div className={"tc-choice" + (printMethod === "hand" ? " tc-choice-active" : "")} onClick={function () { setPrintMethod("hand"); }}>Screen print</div>
               </div>
               {printMethod === "hand" && <Field label="Number of colors" hint="Rs500 per color per 1000 pulls"><NumberInput value={colors} onChange={setColors} min={1} step={1} /></Field>}
               <div className="tc-section-title"><CircleDot /> Lamination & finishing</div>
@@ -663,7 +701,7 @@ function TagCostingCalculator() {
               <div className="tc-tag-header"><div className="tc-tag-eyebrow">Cost Breakdown</div><div className="tc-tag-qty">{num(orderQty, 0)} tags ordered - {num(calc.sheetsNeeded, 0)} sheets - {num(calc.totalPieces, 0)} pieces - {num(calc.totalTags, 0)} tags produced</div></div>
               <div className="tc-lines">
                 <LineItem icon={<Layers />} label="Material" sub={num(calc.sheetsNeeded, 0) + " sheets x " + inr(sheetRate)} amount={inr(calc.materialCost)} />
-                <LineItem icon={<Printer />} label={printMethod === "offset" ? "Offset printing" : "Hand printing"} sub={printMethod === "offset" ? "Min Rs2,000 (1000 pcs) + " + Math.max(0, calc.printSlabs - 1) + " x Rs350" : colors + " color(s) x Rs500 x " + calc.printSlabs + " slab(s)"} amount={inr(calc.printingCost)} />
+                <LineItem icon={<Printer />} label={printMethod === "offset" ? "Offset printing" : "Screen printing"} sub={printMethod === "offset" ? "Min Rs2,000 (1000 pcs) + " + Math.max(0, calc.printSlabs - 1) + " x Rs350" : colors + " color(s) x Rs500 x " + calc.printSlabs + " slab(s)"} amount={inr(calc.printingCost)} />
                 <LineItem icon={<CircleDot />} label="Lamination (matt)" sub={lamination ? num(calc.pieceAreaSqIn) + " sq.in x " + num(calc.totalPieces, 0) + " pieces x Rs0.004" : "Not applied"} amount={inr(calc.laminationCost)} muted={!lamination} />
                 <LineItem icon={<Scissors />} label="Die punching" sub={"Die (" + calc.tier.label + "): " + inr(calc.dieMakingCost) + " + running " + calc.dieSlabs + " slab(s) x Rs" + calc.tier.runRate} amount={inr(calc.dieTotalCost)} />
                 <LineItem icon={<Truck />} label="Transportation" sub="Flat, per order" amount={inr(calc.transportCost)} />
