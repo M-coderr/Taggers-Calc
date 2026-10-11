@@ -498,11 +498,15 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
       }
     }
 
+    var maxPureTags = Math.max(maxV_R * maxV_C, maxH_R * maxH_C);
+
     var totalPieces = ni * mi;
     var sheetArea = sheetL * sheetW;
 
     for (var hi = 0; hi < hybridList.length; hi++) {
       var hItem = hybridList[hi];
+      // Only consider hybrid die if it yields strictly MORE tags per piece than pure single orientation
+      if (hItem.total <= maxPureTags) continue;
       var totalTags = hItem.total * totalPieces;
       if (totalTags < 1) continue;
       
@@ -619,6 +623,10 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
       }
     }
     if (a.totalTagsPerSheet !== b.totalTagsPerSheet) return b.totalTagsPerSheet - a.totalTagsPerSheet;
+    // Prefer single-orientation uniform layout if tag count is the same
+    var aIsComplex = !!(a.isHybrid || (a.optimization && (a.optimization.rotAdditions > 0 || a.optimization.cornerCount > 0)));
+    var bIsComplex = !!(b.isHybrid || (b.optimization && (b.optimization.rotAdditions > 0 || b.optimization.cornerCount > 0)));
+    if (aIsComplex !== bIsComplex) return aIsComplex ? 1 : -1;
     if (a.sheetsNeeded !== b.sheetsNeeded) return a.sheetsNeeded - b.sheetsNeeded;
     var aArea = a.pieceL * a.pieceW, bArea = b.pieceL * b.pieceW;
     if (aArea !== bArea) return bArea - aArea;
