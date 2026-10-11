@@ -316,10 +316,10 @@ function LayoutPreview(props) {
         <span className="lp-title-sub">
           {viewMode === "die"
             ? (props.isMultiTag
-                ? ("Die Board: " + lpFmt(dPL) + " × " + lpFmt(dPW) + " | Combo Die: " + (props.multiTagsList ? props.multiTagsList.length : 0) + " Tags (" + (props.selectedC ? (props.selectedC.upsPerTag || 1) : 1) + " UP each, " + (props.selectedC ? props.selectedC.tagsPerPieceNominal : optTagsPerPiece) + " UP total) | " + dateStr)
+                ? ("Die Board: " + lpFmt(dPL) + " × " + lpFmt(dPW) + " | Combo Die: " + (props.multiTagsList ? props.multiTagsList.length : 0) + " Tags (" + (props.selectedC ? (props.selectedC.formationLabel || (props.selectedC.totalSlots + " UP")) : "") + ") | " + dateStr)
                 : ("Die Board: " + lpFmt(dPL) + " × " + lpFmt(dPW) + " | Tag: " + lpFmt(tL) + " × " + lpFmt(tW) + " | " + (props.selectedC ? props.selectedC.tagsPerPieceNominal : optTagsPerPiece) + " Tags/Die | " + dateStr))
             : (props.isMultiTag
-                ? ("Sheet: " + lpFmt(sL) + " × " + lpFmt(sW) + " | Combo Die: " + (props.multiTagsList ? props.multiTagsList.length : 0) + " Tags (" + (props.selectedC ? (props.selectedC.upsPerTag || 1) : 1) + " UP each, " + (props.selectedC ? props.selectedC.tagsPerPieceNominal : optTagsPerPiece) + " UP total) | Overlap: " + lpFmt(overlap) + " | " + (!isHandFeed ? ("Offset Margin: 0.6\"/0.5\" (Printable: " + lpFmt(pm.usableL) + " × " + lpFmt(pm.usableW) + "\")") : ("Margin: " + lpFmt(margin) + "\"")) + " | " + dateStr)
+                ? ("Sheet: " + lpFmt(sL) + " × " + lpFmt(sW) + " | Combo Die: " + (props.multiTagsList ? props.multiTagsList.length : 0) + " Tags (" + (props.selectedC ? (props.selectedC.formationLabel || (props.selectedC.totalSlots + " UP")) : "") + ") | Overlap: " + lpFmt(overlap) + " | " + (!isHandFeed ? ("Offset Margin: 0.6\"/0.5\" (Printable: " + lpFmt(pm.usableL) + " × " + lpFmt(pm.usableW) + "\")") : ("Margin: " + lpFmt(margin) + "\"")) + " | " + dateStr)
                 : ("Sheet: " + lpFmt(sL) + " × " + lpFmt(sW) + " | Tag: " + lpFmt(tL) + " × " + lpFmt(tW) + " | Overlap: " + lpFmt(overlap) + " | " + (!isHandFeed ? ("Offset Margin: 0.6\"/0.5\" (Printable: " + lpFmt(pm.usableL) + " × " + lpFmt(pm.usableW) + "\")") : ("Margin: " + lpFmt(margin) + "\"")) + " | " + dateStr))
           }
         </span>
@@ -837,7 +837,8 @@ function LayoutPreview(props) {
                 <div className="lp-info-k" style={{marginTop:"6px"}}><div className="lp-info-label">Combo Die Tags ({props.multiTagsList.length})</div></div>
                 {props.multiTagsList.map(function(t, ti) {
                   var col = getMultiTagColor(ti);
-                  var curUps = props.selectedC ? (props.selectedC.upsPerTag || 1) : 1;
+                  var itemInfo = props.selectedC && props.selectedC.itemizedTags ? props.selectedC.itemizedTags.find(function(it) { return it.id === t.id; }) : null;
+                  var curUps = itemInfo ? itemInfo.slots : (t.slots || 1);
                   return (
                     <div key={"info-t-" + ti} className="lp-info-kv">
                       <span className="lp-info-k" style={{ color: col.cut, fontWeight: 700 }}>{t.name || ("Tag " + (ti + 1))}</span>
@@ -845,7 +846,7 @@ function LayoutPreview(props) {
                     </div>
                   );
                 })}
-                <div className="lp-info-kv"><span className="lp-info-k">Total Cavities</span><span className="lp-info-v">{optTagsPerPiece} UP</span></div>
+                <div className="lp-info-kv"><span className="lp-info-k">Total Cavities</span><span className="lp-info-v">{props.selectedC ? (props.selectedC.totalSlots || optTagsPerPiece) : optTagsPerPiece} UP</span></div>
                 <div className="lp-info-kv"><span className="lp-info-k">Tags / Sheet</span><span className="lp-info-v">{num(totalTags, 0)}</span></div>
               </>) : (<>
                 <div className="lp-info-k" style={{marginTop:"6px"}}><div className="lp-info-label">Tag</div></div>
@@ -859,9 +860,9 @@ function LayoutPreview(props) {
             <div className="lp-info-divider" />
             <div className="lp-info-section">
               <div className="lp-info-section-title">Order</div>
-              <div className="lp-info-kv"><span className="lp-info-k">{props.isMultiTag ? "Order (per tag)" : "Order Qty"}</span><span className="lp-info-v">{num(Number(props.quantity) || 0, 0)} {props.isMultiTag ? "tags each" : "tags"}</span></div>
+              <div className="lp-info-kv"><span className="lp-info-k">{props.isMultiTag ? "Total Required" : "Order Qty"}</span><span className="lp-info-v">{num(Number(props.quantity) || 0, 0)} {props.isMultiTag ? "tags total" : "tags"}</span></div>
               {totalSheets > 0 && <div className="lp-info-kv"><span className="lp-info-k">Sheets Required</span><span className="lp-info-v">{totalSheets}</span></div>}
-              {props.isMultiTag && props.selectedC && <div className="lp-info-kv"><span className="lp-info-k">Produced / Tag</span><span className="lp-info-v">{num(props.selectedC.tagsProducedPerTag, 0)} tags</span></div>}
+              {props.isMultiTag && props.selectedC && <div className="lp-info-kv"><span className="lp-info-k">Total Produced</span><span className="lp-info-v">{num(props.selectedC.totalTags, 0)} tags</span></div>}
               <div className="lp-info-kv"><span className="lp-info-k">Utilization</span><span className="lp-info-v lp-info-good">{(100 - wastePct).toFixed(1)}%</span></div>
               <div className="lp-info-kv"><span className="lp-info-k">Waste</span><span className="lp-info-v">{wastePct.toFixed(1)}%</span></div>
             </div>
@@ -1145,12 +1146,11 @@ function TagCostingCalculator() {
   var tagW = tagW_state[0], setTagW = tagW_state[1];
 
   var jobMode_state = useState("single");
-  var jobMode = jobMode_state[0], setJobMode = jobMode_state[1];
-  var upsPerTag_state = useState(1);
-  var upsPerTag = upsPerTag_state[0], setUpsPerTag = upsPerTag_state[1];
   var multiTags_state = useState([
-    { id: "t1", name: "Tag 1", l: 2, w: 4 },
-    { id: "t2", name: "Tag 2", l: 1.5, w: 3 }
+    { id: "t1", name: "Tag 1", l: 2, w: 4, qty: 5000 },
+    { id: "t2", name: "Tag 2", l: 2, w: 4, qty: 5000 },
+    { id: "t3", name: "Tag 3", l: 1.5, w: 3, qty: 5000 },
+    { id: "t4", name: "Tag 4", l: 2, w: 3, qty: 10000 }
   ]);
   var multiTags = multiTags_state[0], setMultiTags = multiTags_state[1];
 
@@ -1161,7 +1161,8 @@ function TagCostingCalculator() {
       id: "t_" + Date.now().toString(36),
       name: "Tag " + nextIdx,
       l: 2,
-      w: 3
+      w: 3,
+      qty: 5000
     }]));
   }
 
@@ -1460,7 +1461,7 @@ function TagCostingCalculator() {
     setCalc(null);
     setAltIdx(0);
   }, [
-    jobMode, multiTags, upsPerTag,
+    jobMode, multiTags,
     sheetL, sheetW, sheetRate, selectedSheetId, tagL, tagW, cuttingOverlapMM, insideMarginMM,
     printMethod, colors, lamination, repeatDie, foil, foilL, foilW, emboss, embossL, embossW, orderQty, marginPct, marginMode, transport,
     feedOffsetL, feedOffsetW, feedHandL, feedHandW, overridePieces, manualPiecesPerSheet
@@ -1478,8 +1479,7 @@ function TagCostingCalculator() {
         var cands = generateMultiTagLayouts(
           Number(sheetL) || 0, Number(sheetW) || 0,
           multiTags,
-          Number(upsPerTag) || 1,
-          oIn, mIn, Number(orderQty) || 5000, fOff, fHand
+          oIn, mIn, fOff, fHand
         );
         if (!cands || cands.length === 0) {
           return { candidates: [], calcResult: null };
@@ -1487,14 +1487,13 @@ function TagCostingCalculator() {
         var idx = typeof chosenIdx === "number" && chosenIdx >= 0 && chosenIdx < cands.length ? chosenIdx : 0;
         var targetCandidate = cands[idx];
         var costObj = computeMultiTagCosts(targetCandidate, multiTags, {
-          sheetRate: sheetRate, orderQty: orderQty, printMethod: printMethod, colors: colors,
+          sheetRate: sheetRate, printMethod: printMethod, colors: colors,
           lamination: lamination, transport: transport, overridePieces: overridePieces,
           manualPiecesPerSheet: manualPiecesPerSheet, effectiveMarginPct: effectiveMarginPct,
           effectiveMarginMode: effectiveMarginMode, overlapIn: oIn, marginIn: mIn,
           feedOffsetL: feedOffsetL, feedOffsetW: feedOffsetW, feedHandL: feedHandL, feedHandW: feedHandW, repeatDie: repeatDie,
-          foil: foil, foilL: foilL, foilW: foilW, emboss: emboss, embossL: embossL, embossW: embossW,
-          upsPerTag: Number(upsPerTag) || 1
-        }, Number(upsPerTag) || 1);
+          foil: foil, foilL: foilL, foilW: foilW, emboss: emboss, embossL: embossL, embossW: embossW
+        });
         return { candidates: cands, calcResult: costObj };
       }
 
@@ -1622,16 +1621,16 @@ function TagCostingCalculator() {
         "🏷️ *TAGGERS - COMBO DIE ORDER QUOTE*",
         "----------------------------------",
         "📄 *Sheet*: " + sheetName,
-        "⚙️ *Die Type*: Multi-Tag Combo Die (" + c.itemizedTags.length + " SKUs, " + (c.upsPerTag || 1) + " UP each, " + c.totalSlots + " UP total)",
-        "📦 *Order Quantity*: " + num(c.orderQty, 0) + " tags required per SKU",
-        "🖨️ *Production*: " + num(c.sheetsNeeded, 0) + " sheets (" + num(c.totalPieces, 0) + " machine pulls) -> " + num(c.tagsProducedPerTag, 0) + " tags/SKU (" + num(c.totalTags, 0) + " total tags)",
+        "⚙️ *Die Type*: Multi-Tag Combo Die (" + c.itemizedTags.length + " SKUs, " + (c.multiplier ? c.multiplier + "x ratio, " : "") + c.totalSlots + " UP total)",
+        "📦 *Order Quantities*: " + c.itemizedTags.map(function(t) { return t.name + ": " + num(t.qtyRequired, 0); }).join(", ") + " (" + num(c.orderQty, 0) + " total tags)",
+        "🖨️ *Production*: " + num(c.sheetsNeeded, 0) + " sheets (" + num(c.totalPieces, 0) + " machine pulls) -> " + num(c.totalTags, 0) + " total tags produced",
         "🎨 *Printing*: " + printStr,
         "✨ *Finishing*: " + (finishes.length > 0 ? finishes.join(", ") : "Standard"),
         "----------------------------------",
         "📋 *TAGS ON DIE (" + c.itemizedTags.length + " SKUs)*:"
       ];
       c.itemizedTags.forEach(function(t) {
-        lines.push("• *" + t.name + "* (" + t.l + '" × ' + t.w + '"): ' + t.slots + " UP | " + num(t.qtyProduced, 0) + " tags | " + inr(t.pricePerTag) + "/tag -> " + inr(t.allocatedPrice));
+        lines.push("• *" + t.name + "* (" + t.l + '" × ' + t.w + '"): ' + t.slots + " UP | Req: " + num(t.qtyRequired, 0) + " -> Prod: " + num(t.qtyProduced, 0) + " tags | " + inr(t.pricePerTag) + "/tag -> " + inr(t.allocatedPrice));
       });
       lines.push("----------------------------------");
       lines.push("💰 *COMBINED ORDER TOTAL*: " + inr(c.sellingPrice));
@@ -1791,7 +1790,7 @@ function TagCostingCalculator() {
 
       ctx.font = "bold 26px Georgia, serif";
       ctx.fillStyle = "#2b211c";
-      ctx.fillText(calc.isMultiTag ? (num(orderQty, 0) + " Tags/SKU (" + calc.totalSlots + " UP)") : (num(orderQty, 0) + " Tags"), cx, cardY + 106);
+      ctx.fillText(calc.isMultiTag ? (num(calc.totalTags, 0) + " Tags (" + calc.totalSlots + " UP Die)") : (num(orderQty, 0) + " Tags"), cx, cardY + 106);
 
       ctx.beginPath();
       ctx.moveTo(cardX + 30, cardY + 122);
@@ -1816,7 +1815,7 @@ function TagCostingCalculator() {
 
       var specs = [
         { label: "Sheet & Material", val: sheetName },
-        { label: "Tag Dimensions", val: calc.isMultiTag ? ("Combo (" + calc.itemizedTags.length + " SKUs, " + (calc.upsPerTag || 1) + " UP each, " + calc.totalSlots + " UP total)") : (tagL + '" × ' + tagW + '"') },
+        { label: "Tag Dimensions", val: calc.isMultiTag ? ("Combo (" + calc.itemizedTags.length + " SKUs, " + (calc.multiplier ? calc.multiplier + "x ratio, " : "") + calc.totalSlots + " UP total)") : (tagL + '" × ' + tagW + '"') },
         { label: "Printing Process", val: printStr },
         { label: "Finishing & Dies", val: finishes.join(", ") }
       ];
@@ -2193,35 +2192,40 @@ function TagCostingCalculator() {
                 </div>
               ) : (
                 <div className="tc-multi-tags-wrap">
-                  <div style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.07)", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                      <div style={{ flex: 1, minWidth: 200 }}>
-                        <Field
-                          label="Die UPs per Tag"
-                          hint="All tags on this die have the identical cavity count"
-                        >
-                          <NumberInput
-                            value={upsPerTag}
-                            onChange={function(val) { setUpsPerTag(Math.max(1, Math.min(8, Math.round(Number(val) || 1)))); }}
-                            min={1}
-                            max={8}
-                            step={1}
-                            suffix="UP / tag"
-                          />
-                        </Field>
-                      </div>
-                      <div style={{ padding: "6px 12px", background: "#fff", border: "1px solid #d5cfc4", borderRadius: 6, textAlign: "right" }}>
-                        <div style={{ fontSize: 11, color: "var(--ink-soft)", textTransform: "uppercase", fontWeight: 700 }}>Total Die Cavities</div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--stamp)" }}>
-                          {multiTags.length * upsPerTag} UP <small style={{ fontSize: 11, fontWeight: 500, color: "#666" }}>({multiTags.length} tags × {upsPerTag} UP)</small>
+                  {(() => {
+                    var ratioList = (typeof calculateTagUpRatio === "function") ? calculateTagUpRatio(multiTags) : [];
+                    var totalBase = ratioList.reduce(function(a, t) { return a + (t.ratioUp || 1); }, 0);
+                    return (
+                      <div style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.07)", borderRadius: 8, padding: "10px 14px", marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                          <div>
+                            <div style={{ fontSize: 11, color: "var(--ink-soft)", textTransform: "uppercase", fontWeight: 700 }}>Auto-Calculated Cavity (UP) Ratio</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--stamp)", marginTop: 2 }}>
+                              {ratioList.map(function(t, i) {
+                                var col = getMultiTagColor(i);
+                                return <span key={i} style={{ color: col.cut, marginRight: 8 }}>{t.name || ("Tag " + (i+1))} ({t.ratioUp} UP)</span>;
+                              })}
+                            </div>
+                          </div>
+                          <div style={{ padding: "6px 12px", background: "#fff", border: "1px solid #d5cfc4", borderRadius: 6, textAlign: "right" }}>
+                            <div style={{ fontSize: 10, color: "var(--ink-soft)", textTransform: "uppercase", fontWeight: 700 }}>Base Ratio</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--stamp)" }}>
+                              {totalBase} Cavities Base
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#666", marginTop: 6 }}>
+                          Cavity ratio is automatically balanced from tag quantities so all tags complete together without waste.
                         </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {multiTags.map(function(t, tIdx) {
                     var col = getMultiTagColor(tIdx);
-                    var producedTags = (calc && calc.tagsProducedPerTag) ? calc.tagsProducedPerTag : orderQty;
+                    var ratioList = (typeof calculateTagUpRatio === "function") ? calculateTagUpRatio(multiTags) : [];
+                    var tRatio = ratioList[tIdx] ? ratioList[tIdx].ratioUp : 1;
+                    var itemCalc = (calc && calc.itemizedTags && calc.itemizedTags[tIdx]) ? calc.itemizedTags[tIdx] : null;
                     return (
                       <div key={t.id || tIdx} className="tc-multi-tag-item" style={{ borderLeftColor: col.cut }}>
                         <div className="tc-multi-tag-header">
@@ -2229,7 +2233,7 @@ function TagCostingCalculator() {
                             <span className="tc-tag-color-pill" style={{ background: col.cut }} />
                             <span>{t.name || ("Tag " + (tIdx + 1))}</span>
                             <span style={{ fontSize: 11, fontWeight: 700, background: col.fill, color: col.text, border: "1px solid " + col.cut, borderRadius: 10, padding: "1px 8px", marginLeft: 6 }}>
-                              {upsPerTag} UP
+                              {itemCalc ? itemCalc.slots : tRatio} UP {calc ? "on die" : "ratio"}
                             </span>
                           </div>
                           {multiTags.length > 1 && (
@@ -2243,7 +2247,7 @@ function TagCostingCalculator() {
                             </button>
                           )}
                         </div>
-                        <div className="tc-multi-tag-inputs" style={{ gridTemplateColumns: "1.2fr 1fr 1fr" }}>
+                        <div className="tc-multi-tag-inputs" style={{ gridTemplateColumns: "1.2fr 1fr 1fr 1.2fr" }}>
                           <Field label="Tag Name">
                             <input
                               type="text"
@@ -2267,9 +2271,18 @@ function TagCostingCalculator() {
                               suffix="in"
                             />
                           </Field>
+                          <Field label="Required Qty" hint="Tags needed">
+                            <NumberInput
+                              value={t.qty != null ? t.qty : 5000}
+                              onChange={function(val) { updateMultiTagField(tIdx, "qty", Math.max(1, Math.round(Number(val) || 1))); }}
+                              min={1}
+                              step={500}
+                              suffix="tags"
+                            />
+                          </Field>
                         </div>
                         <div className="tc-multi-tag-meta">
-                          <span>Produces: <strong>{num(producedTags, 0)} tags</strong> ({upsPerTag} UP {calc ? ("× " + num(calc.totalPieces, 0) + " pulls") : ""})</span>
+                          <span>Target: <strong>{num(t.qty || 5000, 0)} tags</strong> {itemCalc ? ("-> Produces " + num(itemCalc.qtyProduced, 0) + " tags (" + itemCalc.slots + " UP x " + num(calc.totalPieces, 0) + " pulls)") : ""}</span>
                           <span>Size: {t.l}" × {t.w}"</span>
                         </div>
                       </div>
@@ -2345,12 +2358,17 @@ function TagCostingCalculator() {
               <div className="tc-field-hint" style={{ marginBottom: 10, marginTop: 6 }}>Die punching is applied to every job automatically unless Repeat Die is checked.</div>
               <div className="tc-section-title"><Truck /> Order</div>
               <div className="tc-row">
-                <Field
-                  label={jobMode === "multi" ? "Order quantity (per tag)" : "Order quantity"}
-                  hint={jobMode === "multi" ? "Required tags for each design (e.g. 5,000 tags each)" : undefined}
-                >
-                  <NumberInput value={orderQty} onChange={setOrderQty} min={1} step={1} suffix="tags" />
-                </Field>
+                {jobMode === "single" ? (
+                  <Field label="Order quantity">
+                    <NumberInput value={orderQty} onChange={setOrderQty} min={1} step={1} suffix="tags" />
+                  </Field>
+                ) : (
+                  <Field label="Total Order Quantity" hint="Sum of all tag designs entered above">
+                    <div style={{ fontSize: 15, fontWeight: 700, padding: "9px 12px", background: "rgba(0,0,0,0.03)", borderRadius: 6, border: "1px solid rgba(0,0,0,0.08)", color: "var(--stamp)" }}>
+                      {num(multiTags.reduce(function(a, t) { return a + (Number(t.qty) || 0); }, 0), 0)} tags across {multiTags.length} designs
+                    </div>
+                  </Field>
+                )}
                 {isOwner ? <Field label="Transport (flat)"><NumberInput value={transport} onChange={setTransport} suffix="Rs/order" /></Field> : <div />}
               </div>
               {isOwner && (<>
@@ -2392,7 +2410,7 @@ function TagCostingCalculator() {
                       <div className="tc-tag-eyebrow">Cost Breakdown</div>
                       <div className="tc-tag-qty">
                         {calc.isMultiTag
-                          ? (num(orderQty, 0) + " tags/design ordered (" + (calc.itemizedTags ? calc.itemizedTags.length : 0) + " tags, " + calc.upsPerTag + " UP each) - " + num(calc.sheetsNeeded, 0) + " sheets - " + num(calc.totalPieces, 0) + " machine pulls - " + num(calc.totalTags, 0) + " total tags produced")
+                          ? ((calc.multiplier ? calc.multiplier + "x ratio, " : "") + calc.totalSlots + " UP die (" + (calc.itemizedTags ? calc.itemizedTags.length : 0) + " tags) - " + num(calc.sheetsNeeded, 0) + " sheets - " + num(calc.totalPieces, 0) + " machine pulls - " + num(calc.totalTags, 0) + " total tags produced")
                           : (num(orderQty, 0) + " tags ordered - " + num(calc.sheetsNeeded, 0) + " sheets - " + num(calc.totalPieces, 0) + " pieces - " + num(calc.totalTags, 0) + " tags produced")}
                       </div>
                     </div>
@@ -2415,7 +2433,7 @@ function TagCostingCalculator() {
                             Combo Die Tags Breakdown ({calc.itemizedTags.length} SKUs)
                           </div>
                           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-soft)" }}>
-                            {calc.totalSlots} Cavities ({calc.itemizedTags.length} tags × {calc.upsPerTag} UP)
+                            {calc.totalSlots} Cavities ({calc.multiplier ? calc.multiplier + "x ratio" : (calc.itemizedTags.length + " tags")})
                           </div>
                         </div>
                         <div style={{ overflowX: "auto" }}>
@@ -2561,7 +2579,7 @@ function TagCostingCalculator() {
                       <div className="tc-tag-eyebrow">Quote</div>
                       <div className="tc-tag-qty">
                         {calc.isMultiTag
-                          ? (num(orderQty, 0) + " tags/design required (" + (calc.itemizedTags ? calc.itemizedTags.length : 0) + " tags, " + calc.upsPerTag + " UP each, " + calc.totalSlots + " UP die)")
+                          ? ((calc.multiplier ? calc.multiplier + "x ratio, " : "") + calc.totalSlots + " UP combo die (" + (calc.itemizedTags ? calc.itemizedTags.length : 0) + " tags) - " + num(calc.totalTags, 0) + " total tags produced")
                           : (num(orderQty, 0) + " tags")}
                       </div>
                     </div>
@@ -2580,7 +2598,7 @@ function TagCostingCalculator() {
                             Combo Die Breakdown ({calc.itemizedTags.length} SKUs)
                           </div>
                           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-soft)" }}>
-                            {calc.totalSlots} Cavities ({calc.itemizedTags.length} tags × {calc.upsPerTag} UP)
+                            {calc.totalSlots} Cavities ({calc.multiplier ? calc.multiplier + "x ratio" : (calc.itemizedTags.length + " tags")})
                           </div>
                         </div>
                         <div style={{ overflowX: "auto" }}>
