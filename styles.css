@@ -1120,3 +1120,87 @@ html, body { margin: 0; padding: 0; background: #F4F0EA; }
           background: var(--stamp);
           color: #fff;
         }
+
+        /* --- PDF & Print Styles for Option B: Technical Spec Sheet --- */
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 8mm;
+          }
+          html, body {
+            background: #fff !important;
+            color: #000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Hide app chrome, header, inputs, buttons, cost calculator, etc. */
+          .tc-header,
+          .tc-form-col,
+          .tc-cost-col,
+          .tc-history,
+          .tc-assump-toggle,
+          .lo-alt-bar,
+          .suggestion-banner,
+          .production-panel,
+          #version-badge,
+          .lo-alt-btn {
+            display: none !important;
+          }
+          /* Ensure layout preview takes full printable page cleanly */
+          .lp-shell {
+            border: 1.5px solid #222 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: #fff !important;
+            width: 100% !important;
+            page-break-inside: avoid !important;
+          }
+          .lp-title-bar {
+            background: #f4efe6 !important;
+            border-bottom: 1.5px solid #222 !important;
+            color: #111 !important;
+            padding: 8px 14px !important;
+          }
+          .lp-title-sub {
+            color: #333 !important;
+          }
+          .lp-main {
+            display: flex !important;
+            flex-direction: row !important;
+            background: #fff !important;
+          }
+          .lp-drawing-col {
+            flex: 1 1 70% !important;
+          }
+          .lp-drawing {
+            background: #fff !important;
+            padding: 6px !important;
+          }
+          .lp-svg {
+            max-height: 160mm !important;
+          }
+          .lp-info-col {
+            flex: 0 0 28% !important;
+            max-width: 28% !important;
+            border-left: 1.5px solid #222 !important;
+            background: #faf8f5 !important;
+          }
+          .lp-info-panel {
+            padding: 10px 12px !important;
+            gap: 8px !important;
+          }
+          .lp-info-section-title {
+            color: #000 !important;
+            font-weight: 700 !important;
+          }
+          .lp-legend {
+            border-top: 1px solid #ccc !important;
+            padding: 6px 10px !important;
+          }
+          .lp-footer {
+            color: #555 !important;
+            padding: 4px 10px 6px !important;
+          }
+        }

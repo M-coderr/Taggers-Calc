@@ -309,9 +309,13 @@ function LayoutPreview(props) {
             : ("Sheet: " + lpFmt(sL) + " × " + lpFmt(sW) + " | Tag: " + lpFmt(tL) + " × " + lpFmt(tW) + " | Overlap: " + lpFmt(overlap) + " | " + (!isHandFeed ? ("Offset Margin: 0.6\"/0.5\" (Printable: " + lpFmt(pm.usableL) + " × " + lpFmt(pm.usableW) + "\")") : ("Margin: " + lpFmt(margin) + "\"")) + " | " + dateStr)
           }
         </span>
-        <div style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "6px", alignItems: "center" }}>
           <button type="button" className={"lo-alt-btn" + (viewMode === "sheet" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("sheet"); }}>Sheet View</button>
           <button type="button" className={"lo-alt-btn" + (viewMode === "die" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("die"); }}>Single Die View</button>
+          <button type="button" className="lo-alt-btn" style={{ padding: "3px 10px", fontSize: "11px", height: "auto", background: "#b44a2a", color: "#fff", borderColor: "#963d20", display: "inline-flex", alignItems: "center", gap: "4px" }} onClick={function() { window.print(); }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export PDF
+          </button>
         </div>
       </div>
       <div className="lp-main">
