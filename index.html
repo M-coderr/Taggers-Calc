@@ -40,10 +40,10 @@ function lpFmt(v) {
 }
 
 var TAG_STYLE = {
-  cutLine: { color: '#000', width: 0.8 },
+  cutLine: { color: '#c0392b', width: 0.8 },
   bleedLine: { color: '#e74c3c', width: 0.35, dash: '2.5,2', outset: 0.0625 },
   safeLine: { color: '#27ae60', width: 0.25, dash: '1,2.5', inset: 0.125 },
-  hole: { radius: 0.125, color: '#000', width: 0.35 },
+  hole: { radius: 0.125, color: '#c0392b', width: 0.35 },
   centerCross: { size: 0.07, color: '#555', width: 0.2 },
   cornerRadius: 0.0625,
 };
@@ -92,27 +92,50 @@ function renderTagShape(opts) {
 
   if (L.hole) {
     var hr = sty.hole.radius * sc;
+    var holeMargin = Math.max(hr + 2, Math.min(tw, th) * 0.18);
+    var hx = cx, hy = cy;
+    if (tw <= th) {
+      hx = cx;
+      hy = ty + holeMargin;
+    } else {
+      hx = tx + holeMargin;
+      hy = cy;
+    }
     els.push(
-      <circle key="hole" cx={cx} cy={cy} r={hr}
+      <circle key="hole" cx={hx} cy={hy} r={hr}
         fill="#fff" stroke={sty.hole.color} strokeWidth={sty.hole.width} />
     );
   }
 
   if (L.center) {
     var cs = sty.centerCross.size * sc;
-    els.push(
-      <line key="hc1" x1={cx - cs} y1={cy} x2={cx + cs} y2={cy}
-        stroke={sty.centerCross.color} strokeWidth={sty.centerCross.width} />,
-      <line key="hc2" x1={cx} y1={cy - cs} x2={cx} y2={cy + cs}
-        stroke={sty.centerCross.color} strokeWidth={sty.centerCross.width} />
-    );
+    // If tag ID is shown at center, keep a small gap so text is crisp and clean
+    var idGap = (opts.showId && opts.id) ? (opts.idFontSize * 1.4) : 0;
+    if (idGap > 0) {
+      if (cs > idGap) {
+        els.push(
+          <line key="hc1-l" x1={cx - cs} y1={cy} x2={cx - idGap} y2={cy} stroke={sty.centerCross.color} strokeWidth={sty.centerCross.width} />,
+          <line key="hc1-r" x1={cx + idGap} y1={cy} x2={cx + cs} y2={cy} stroke={sty.centerCross.color} strokeWidth={sty.centerCross.width} />,
+          <line key="hc2-t" x1={cx} y1={cy - cs} x2={cx} y2={cy - opts.idFontSize * 0.8} stroke={sty.centerCross.color} strokeWidth={sty.centerCross.width} />,
+          <line key="hc2-b" x1={cx} y1={cy + opts.idFontSize * 0.8} x2={cx} y2={cy + cs} stroke={sty.centerCross.color} strokeWidth={sty.centerCross.width} />
+        );
+      }
+    } else {
+      els.push(
+        <line key="hc1" x1={cx - cs} y1={cy} x2={cx + cs} y2={cy}
+          stroke={sty.centerCross.color} strokeWidth={sty.centerCross.width} />,
+        <line key="hc2" x1={cx} y1={cy - cs} x2={cx} y2={cy + cs}
+          stroke={sty.centerCross.color} strokeWidth={sty.centerCross.width} />
+      );
+    }
   }
 
   if (opts.showId && opts.id) {
     els.push(
-      <text key="tid" x={cx} y={ty + sty.safeLine.inset * sc + opts.idFontSize}
-        textAnchor="middle" fontSize={opts.idFontSize} fontWeight="600"
-        fill="#666" fontFamily="'Courier New',monospace">{opts.id}</text>
+      <text key="tid" x={cx} y={cy}
+        textAnchor="middle" dominantBaseline="central"
+        fontSize={opts.idFontSize} fontWeight="600"
+        fill="#555" fontFamily="'Courier New',monospace">{opts.id}</text>
     );
   }
 
@@ -120,6 +143,8 @@ function renderTagShape(opts) {
 }
 
 function LayoutPreview(props) {
+  var viewMode_state = React.useState("sheet");
+  var viewMode = viewMode_state[0], setViewMode = viewMode_state[1];
   var sL = Number(props.sheetLength) || 0;
   var sW = Number(props.sheetWidth) || 0;
   var pL = Number(props.pieceLength) || 0;
@@ -170,8 +195,31 @@ function LayoutPreview(props) {
   var dTC = rotated ? tR : tC;
   var dTL = rotated === !!props.tagRotated ? tL : tW;
   var dTW = rotated === !!props.tagRotated ? tW : tL;
-  var usableDL = Math.max(0, dPL - 2 * margin);
-  var usableDW = Math.max(0, dPW - 2 * margin);
+  function getPreviewMargins(pieceL_val, pieceW_val) {
+    if (!isHandFeed) {
+      var shortSide = Math.min(pieceL_val, pieceW_val);
+      var longSide = Math.max(pieceL_val, pieceW_val);
+      var usableShort = Math.max(0, shortSide - 0.6);
+      var usableLong = Math.max(0, longSide - 0.5);
+      var uL = (pieceL_val <= pieceW_val) ? usableShort : usableLong;
+      var uW = (pieceL_val <= pieceW_val) ? usableLong : usableShort;
+      return {
+        usableL: uL,
+        usableW: uW,
+        mL: (pieceL_val - uL) / 2,
+        mW: (pieceW_val - uW) / 2
+      };
+    }
+    return {
+      usableL: Math.max(0, pieceL_val - 2 * margin),
+      usableW: Math.max(0, pieceW_val - 2 * margin),
+      mL: margin,
+      mW: margin
+    };
+  }
+  var pm = getPreviewMargins(dPL, dPW);
+  var usableDL = pm.usableL;
+  var usableDW = pm.usableW;
   var pitchDL = dTL + 2 * overlap;
   var pitchDW = dTW + 2 * overlap;
   var svgTR = pitchDL > 0 ? Math.floor((usableDL + 2 * overlap) / pitchDL) : 0;
@@ -219,7 +267,19 @@ function LayoutPreview(props) {
   if (!valid || !geo) {
     return (
       <div className="lp-shell">
-      <div className="lp-title-bar"><span>DIE LAYOUT</span><span className="lp-title-sub">Sheet: {lpFmt(sL)} × {lpFmt(sW)} | Tag: {lpFmt(tL)} × {lpFmt(tW)} | Overlap: {lpFmt(overlap)} | Margin: {lpFmt(margin)} | Scale: Fit to View | {dateStr}</span></div>
+      <div className="lp-title-bar">
+        <span>{viewMode === "die" ? "SINGLE DIE VIEW" : "DIE LAYOUT (SHEET NESTING)"}</span>
+        <span className="lp-title-sub">
+          {viewMode === "die"
+            ? ("Die Board: " + lpFmt(dPL) + " × " + lpFmt(dPW) + " | Tag: " + lpFmt(tL) + " × " + lpFmt(tW) + " | " + (props.selectedC ? props.selectedC.tagsPerPieceNominal : optTagsPerPiece) + " Tags/Die | " + dateStr)
+            : ("Sheet: " + lpFmt(sL) + " × " + lpFmt(sW) + " | Tag: " + lpFmt(tL) + " × " + lpFmt(tW) + " | Overlap: " + lpFmt(overlap) + " | " + (!isHandFeed ? ("Offset Margin: 0.6\"/0.5\" (Printable: " + lpFmt(pm.usableL) + " × " + lpFmt(pm.usableW) + "\")") : ("Margin: " + lpFmt(margin) + "\"")) + " | " + dateStr)
+          }
+        </span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
+          <button type="button" className={"lo-alt-btn" + (viewMode === "sheet" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("sheet"); }}>Sheet View</button>
+          <button type="button" className={"lo-alt-btn" + (viewMode === "die" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("die"); }}>Single Die View</button>
+        </div>
+      </div>
         <div className="lp-preview-empty">
           <svg viewBox="0 0 400 250" className="lp-svg"><text x="200" y="130" textAnchor="middle" fontSize="16" fontWeight="600" fill="#aaa" fontFamily="'Courier New',monospace">No valid layout generated</text></svg>
         </div>
@@ -241,7 +301,19 @@ function LayoutPreview(props) {
 
   return (
     <div className="lp-shell">
-      <div className="lp-title-bar"><span>DIE LAYOUT</span><span className="lp-title-sub">Sheet: {lpFmt(sL)} × {lpFmt(sW)} | Tag: {lpFmt(tL)} × {lpFmt(tW)} | Overlap: {lpFmt(overlap)} | Margin: {lpFmt(margin)} | Scale: Fit to View | {dateStr}</span></div>
+      <div className="lp-title-bar">
+        <span>{viewMode === "die" ? "SINGLE DIE VIEW" : "DIE LAYOUT (SHEET NESTING)"}</span>
+        <span className="lp-title-sub">
+          {viewMode === "die"
+            ? ("Die Board: " + lpFmt(dPL) + " × " + lpFmt(dPW) + " | Tag: " + lpFmt(tL) + " × " + lpFmt(tW) + " | " + (props.selectedC ? props.selectedC.tagsPerPieceNominal : optTagsPerPiece) + " Tags/Die | " + dateStr)
+            : ("Sheet: " + lpFmt(sL) + " × " + lpFmt(sW) + " | Tag: " + lpFmt(tL) + " × " + lpFmt(tW) + " | Overlap: " + lpFmt(overlap) + " | " + (!isHandFeed ? ("Offset Margin: 0.6\"/0.5\" (Printable: " + lpFmt(pm.usableL) + " × " + lpFmt(pm.usableW) + "\")") : ("Margin: " + lpFmt(margin) + "\"")) + " | " + dateStr)
+          }
+        </span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
+          <button type="button" className={"lo-alt-btn" + (viewMode === "sheet" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("sheet"); }}>Sheet View</button>
+          <button type="button" className={"lo-alt-btn" + (viewMode === "die" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("die"); }}>Single Die View</button>
+        </div>
+      </div>
       <div className="lp-main">
         <div className="lp-drawing-col">
           <div className="lp-drawing">
@@ -255,14 +327,199 @@ function LayoutPreview(props) {
 
               <rect x="0" y="0" width={geo.VB_W} height={geo.VB_H} fill="#f7f6f3" />
 
-              <rect x={oX} y={oY} width={shW} height={shH} fill="#ffffff" stroke="#2a2a2a" strokeWidth={geo.swE} />
-
-              {wasteR > 0.5 && <rect x={oX + shW - wasteR} y={oY} width={wasteR} height={shH} fill="url(#lp-hatch)" stroke="none" />}
-              {wasteB > 0.5 && <rect x={oX} y={oY + shH - wasteB} width={shW} height={wasteB} fill="url(#lp-hatch)" stroke="none" />}
+              {viewMode === "sheet" && (
+                <>
+                  <rect x={oX} y={oY} width={shW} height={shH} fill="#ffffff" stroke="#2a2a2a" strokeWidth={geo.swE} />
+                  {wasteR > 0.5 && <rect x={oX + shW - wasteR} y={oY} width={wasteR} height={shH} fill="url(#lp-hatch)" stroke="none" />}
+                  {wasteB > 0.5 && <rect x={oX} y={oY + shH - wasteB} width={shW} height={wasteB} fill="url(#lp-hatch)" stroke="none" />}
+                </>
+              )}
 
               {(() => {
                 var pieceGroups = [];
                 var reclaimOverlay = [];
+                var candBlocks = (props.selectedC && Array.isArray(props.selectedC.blocks) && props.selectedC.blocks.length > 0) ? props.selectedC.blocks : null;
+
+                // --- Single Die View (Zoomed into one piece die board) ---
+                if (viewMode === "die") {
+                  var dieDisplayW = dPL, dieDisplayH = dPW;
+                  var padSvgL = 40, padSvgR = 55, padSvgT = 55, padSvgB = 40;
+                  var availW = geo.VB_W - padSvgL - padSvgR;
+                  var availH = geo.VB_H - padSvgT - padSvgB;
+                  var scDie = Math.min(availW / dieDisplayW, availH / dieDisplayH);
+                  var dieBoxW = dieDisplayW * scDie, dieBoxH = dieDisplayH * scDie;
+                  var oX_die = padSvgL + (availW - dieBoxW) / 2;
+                  var oY_die = padSvgT + (availH - dieBoxH) / 2;
+                  var pmDie = getPreviewMargins(dieDisplayW, dieDisplayH);
+                  var marginDieSvgX = pmDie.mL * scDie;
+                  var marginDieSvgY = pmDie.mW * scDie;
+                  var usableDieW = pmDie.usableL * scDie;
+                  var usableDieH = pmDie.usableW * scDie;
+
+                  var dieElements = [];
+                  var dieTitle = "TAGGERS_DIE_" + lpFmt(tL) + "x" + lpFmt(tW) + "_" + (props.selectedC ? props.selectedC.tagsPerPieceNominal : optTagsPerPiece) + "_UP";
+
+                  if (candBlocks) {
+                    var dieMaxX = 0, dieMaxY = 0;
+                    candBlocks.forEach(function(b) {
+                      var bSpanX = (rotated ? (b.xOffset + b.cols * b.cutW) : (b.yOffset + b.rows * b.cutL)) - 2 * overlap;
+                      var bSpanY = (rotated ? (b.yOffset + b.rows * b.cutL) : (b.xOffset + b.cols * b.cutW)) - 2 * overlap;
+                      if (bSpanX > dieMaxX) dieMaxX = bSpanX;
+                      if (bSpanY > dieMaxY) dieMaxY = bSpanY;
+                    });
+                    var padX = Math.max(0, (usableDieW - dieMaxX * scDie) / 2);
+                    var padY = Math.max(0, (usableDieH - dieMaxY * scDie) / 2);
+                    var tagCounter = 0;
+
+                    candBlocks.forEach(function(b, bi) {
+                      var bOffX = (rotated ? b.xOffset : b.yOffset) * scDie;
+                      var bOffY = (rotated ? b.yOffset : b.xOffset) * scDie;
+                      var pitchX = (rotated ? b.cutW : b.cutL) * scDie;
+                      var pitchY = (rotated ? b.cutL : b.cutW) * scDie;
+                      var tw = (rotated ? b.cutW - 2 * overlap : b.cutL - 2 * overlap) * scDie;
+                      var th = (rotated ? b.cutL - 2 * overlap : b.cutW - 2 * overlap) * scDie;
+
+                      var loopCols = rotated ? b.cols : b.rows;
+                      var loopRows = rotated ? b.rows : b.cols;
+
+                      for (var br = 0; br < loopRows; br++) {
+                        for (var bc = 0; bc < loopCols; bc++) {
+                          tagCounter++;
+                          var tx = oX_die + marginDieSvgX + padX + bOffX + bc * pitchX;
+                          var ty = oY_die + marginDieSvgY + padY + bOffY + br * pitchY;
+                          var tagId = "T" + String(tagCounter);
+                          var showId = tw > 16 && th > 12;
+                          var idFontSize = Math.max(6, Math.min(10, scDie * 0.45));
+
+                          dieElements.push(
+                            <g key={"dt-" + bi + "-" + br + "-" + bc}>
+                              {renderTagShape({
+                                x: tx, y: ty, w: tw, h: th, sc: scDie,
+                                style: TAG_STYLE, layers: L,
+                                id: tagId, showId: showId, idFontSize: idFontSize,
+                              })}
+                            </g>
+                          );
+                        }
+                      }
+                    });
+                  }
+
+                  var dDimY = oY_die - 14;
+                  var dDimX = oX_die + dieBoxW + 18;
+
+                  return [
+                    <g key="single-die-view">
+                      {/* Die Board outline */}
+                      <rect x={oX_die} y={oY_die} width={dieBoxW} height={dieBoxH} fill="#ffffff" stroke="#2a2a2a" strokeWidth="2.2" />
+                      
+                      {/* Die Title */}
+                      <text x={oX_die + 4} y={oY_die - 28} fontSize="14" fontWeight="700" fill="#222" fontFamily="'Courier New',monospace">{dieTitle}</text>
+                      
+                      {/* Top Horizontal Dimension */}
+                      <line x1={oX_die} y1={oY_die - 2} x2={oX_die} y2={dDimY - 4} stroke="#444" strokeWidth="0.8" />
+                      <line x1={oX_die + dieBoxW} y1={oY_die - 2} x2={oX_die + dieBoxW} y2={dDimY - 4} stroke="#444" strokeWidth="0.8" />
+                      <line x1={oX_die - 2} y1={dDimY} x2={oX_die + dieBoxW + 2} y2={dDimY} stroke="#444" strokeWidth="0.8" />
+                      <polygon points={oX_die + "," + dDimY + " " + (oX_die + 4) + "," + (dDimY - 1.5) + " " + (oX_die + 4) + "," + (dDimY + 1.5)} fill="#444" />
+                      <polygon points={(oX_die + dieBoxW) + "," + dDimY + " " + (oX_die + dieBoxW - 4) + "," + (dDimY - 1.5) + " " + (oX_die + dieBoxW - 4) + "," + (dDimY + 1.5)} fill="#444" />
+                      <text x={oX_die + dieBoxW / 2} y={dDimY - 5} textAnchor="middle" fontSize="12" fontWeight="600" fill="#333" fontFamily="'Courier New',monospace">{lpFmt(dieDisplayW)}"</text>
+
+                      {/* Right Vertical Dimension */}
+                      <line x1={oX_die + dieBoxW + 2} y1={oY_die} x2={dDimX + 4} y2={oY_die} stroke="#444" strokeWidth="0.8" />
+                      <line x1={oX_die + dieBoxW + 2} y1={oY_die + dieBoxH} x2={dDimX + 4} y2={oY_die + dieBoxH} stroke="#444" strokeWidth="0.8" />
+                      <line x1={dDimX} y1={oY_die - 2} x2={dDimX} y2={oY_die + dieBoxH + 2} stroke="#444" strokeWidth="0.8" />
+                      <polygon points={dDimX + "," + oY_die + " " + (dDimX - 1.5) + "," + (oY_die + 4) + " " + (dDimX + 1.5) + "," + (oY_die + 4)} fill="#444" />
+                      <polygon points={dDimX + "," + (oY_die + dieBoxH) + " " + (dDimX - 1.5) + "," + (oY_die + dieBoxH - 4) + " " + (dDimX + 1.5) + "," + (oY_die + dieBoxH - 4)} fill="#444" />
+                      <text x={dDimX + 5} y={oY_die + dieBoxH / 2} textAnchor="start" fontSize="12" fontWeight="600" fill="#333" fontFamily="'Courier New',monospace" dominantBaseline="middle" transform={"rotate(90 " + (dDimX + 5) + " " + (oY_die + dieBoxH / 2) + ")"}>{lpFmt(dieDisplayH)}"</text>
+
+                      {/* Die Tags */}
+                      {dieElements}
+                    </g>,
+                    null
+                  ];
+                }
+
+                // --- Sheet View with Blocks / Hybrid Dies ---
+                if (candBlocks) {
+                  var dieMaxX = 0, dieMaxY = 0;
+                  candBlocks.forEach(function(b) {
+                    var bSpanX = (rotated ? (b.xOffset + b.cols * b.cutW) : (b.yOffset + b.rows * b.cutL)) - 2 * overlap;
+                    var bSpanY = (rotated ? (b.yOffset + b.rows * b.cutL) : (b.xOffset + b.cols * b.cutW)) - 2 * overlap;
+                    if (bSpanX > dieMaxX) dieMaxX = bSpanX;
+                    if (bSpanY > dieMaxY) dieMaxY = bSpanY;
+                  });
+
+                  var nominalLayoutSpanX = dN * pw;
+                  var nominalLayoutSpanY = dM * ph;
+                  var unusedX = Math.max(0, shW - nominalLayoutSpanX);
+                  var unusedY = Math.max(0, shH - nominalLayoutSpanY);
+                  var startOriginX = oX + unusedX / 2;
+                  var startOriginY = oY + unusedY / 2;
+
+                  var pmSheet = getPreviewMargins(dPL, dPW);
+                  var usableSvgW = pmSheet.usableL * sc;
+                  var usableSvgH = pmSheet.usableW * sc;
+                  var padX = Math.max(0, (usableSvgW - dieMaxX * sc) / 2);
+                  var padY = Math.max(0, (usableSvgH - dieMaxY * sc) / 2);
+                  var marginSvgX = pmSheet.mL * sc;
+                  var marginSvgY = pmSheet.mW * sc;
+
+                  var tagsPerPiece = candBlocks.reduce(function(acc, b) { return acc + b.count; }, 0);
+
+                  for (var row = 0; row < dM; row++) {
+                    for (var col = 0; col < dN; col++) {
+                      var px = startOriginX + col * pw;
+                      var py = startOriginY + row * ph;
+                      var pieceIdx = row * dN + col;
+                      var startTagNum = pieceIdx * tagsPerPiece;
+                      var tagInPiece = 0;
+                      var blockEls = [];
+
+                      candBlocks.forEach(function(b, bi) {
+                        var bOffX = (rotated ? b.xOffset : b.yOffset) * sc;
+                        var bOffY = (rotated ? b.yOffset : b.xOffset) * sc;
+                        var pitchX = (rotated ? b.cutW : b.cutL) * sc;
+                        var pitchY = (rotated ? b.cutL : b.cutW) * sc;
+                        var tw = (rotated ? b.cutW - 2 * overlap : b.cutL - 2 * overlap) * sc;
+                        var th = (rotated ? b.cutL - 2 * overlap : b.cutW - 2 * overlap) * sc;
+
+                        var loopCols = rotated ? b.cols : b.rows;
+                        var loopRows = rotated ? b.rows : b.cols;
+
+                        for (var br = 0; br < loopRows; br++) {
+                          for (var bc = 0; bc < loopCols; bc++) {
+                            tagInPiece++;
+                            var tagNum = startTagNum + tagInPiece;
+                            var tx = px + marginSvgX + padX + bOffX + bc * pitchX;
+                            var ty = py + marginSvgY + padY + bOffY + br * pitchY;
+                            var tagId = "T" + String(tagNum);
+                            var showId = tw > 14 && th > 10;
+                            var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
+
+                            blockEls.push(
+                              <g key={"t-" + row + "-" + col + "-" + bi + "-" + br + "-" + bc}>
+                                {renderTagShape({
+                                  x: tx, y: ty, w: tw, h: th, sc: sc,
+                                  style: TAG_STYLE, layers: L,
+                                  id: tagId, showId: showId, idFontSize: idFontSize,
+                                })}
+                              </g>
+                            );
+                          }
+                        }
+                      });
+
+                      pieceGroups.push(
+                        <g key={"p-" + row + "-" + col}>
+                          <rect x={px} y={py} width={pw} height={ph} fill="none" stroke="#888" strokeWidth={geo.swT} />
+                          {blockEls}
+                        </g>
+                      );
+                    }
+                  }
+
+                  return [pieceGroups, null];
+                }
 
                 // --- Whole-sheet centering: compute nominal layout span then center it ---
                 // Each piece occupies exactly pw × ph (nominal, no extension for centering calc).
@@ -292,7 +549,11 @@ function LayoutPreview(props) {
                   Array.from({ length: dN }).forEach(function(_, col) {
                     var px = currX;
                     var py = currY;
-                    var marginSvg = margin * sc;
+                    var curPieceL = isMixedCandidate ? (rotated ? strip.L : strip.W) : dPL;
+                    var curPieceW = isMixedCandidate ? (rotated ? strip.W : strip.L) : dPW;
+                    var pmCur = getPreviewMargins(curPieceL, curPieceW);
+                    var marginSvgX = pmCur.mL * sc;
+                    var marginSvgY = pmCur.mW * sc;
                     var overlapSvg = overlap * sc;
                     var pitchX = tw + 2 * overlapSvg;
                     var pitchY = th + 2 * overlapSvg;
@@ -301,8 +562,8 @@ function LayoutPreview(props) {
                     var curSvgTR = isMixedCandidate ? (rotated ? strip.cols : strip.rows) : svgTR;
                     var curSvgTC = isMixedCandidate ? (rotated ? strip.rows : strip.cols) : svgTC;
 
-                    var usableW = Math.max(0, rowPw - 2 * marginSvg);
-                    var usableH = Math.max(0, rowPh - 2 * marginSvg);
+                    var usableW = pmCur.usableL * sc;
+                    var usableH = pmCur.usableW * sc;
                     var gridW = curSvgTR > 0 ? curSvgTR * tw + (curSvgTR - 1) * 2 * overlapSvg : 0;
                     var gridH = curSvgTC > 0 ? curSvgTC * th + (curSvgTC - 1) * 2 * overlapSvg : 0;
 
@@ -325,18 +586,18 @@ function LayoutPreview(props) {
                     try { console.log("[CENTER] piece " + (row*dN+col+1) + " usable=" + usableW.toFixed(1) + "x" + usableH.toFixed(1) + " grid=" + gridW.toFixed(1) + "x" + gridH.toFixed(1) + " content=" + contentW.toFixed(1) + "x" + contentH.toFixed(1) + " recClaimH=" + recClaimH.toFixed(1) + " recClaimW=" + recClaimW.toFixed(1) + " recClaimW_corner=" + recClaimW_corner.toFixed(1) + " btmReclaimH=" + btmReclaimH + " rgtReclaimN=" + rgtReclaimN); } catch(e) {}
                     try { console.log("===> v2-reclaim-center-active <==="); } catch(e) {}
 
-                    var firstTagX = px + marginSvg + Math.max(0, (usableW - gridW) / 2);
-                    var firstTagY = py + marginSvg + Math.max(0, (usableH - gridH) / 2);
+                    var firstTagX = px + marginSvgX + Math.max(0, (usableW - gridW) / 2);
+                    var firstTagY = py + marginSvgY + Math.max(0, (usableH - gridH) / 2);
                     var lastTagEndX = firstTagX + gridW;
                     var lastTagEndY = firstTagY + gridH;
 
                     // Piece extension: strip extends in one axis; corner-fit extends in both
                     var extPw = hasCornerRm
-                      ? Math.max(rowPw, (lastTagEndX + cTW_svg + marginSvg) - px)
-                      : Math.max(rowPw, (lastTagEndX + Math.max(recClaimW, 0) + marginSvg) - px);
+                      ? Math.max(rowPw, (lastTagEndX + cTW_svg + marginSvgX) - px)
+                      : Math.max(rowPw, (lastTagEndX + Math.max(recClaimW, 0) + marginSvgX) - px);
                     var extPh = hasCornerRm
-                      ? Math.max(rowPh, (lastTagEndY + cTH_svg + marginSvg) - py)
-                      : Math.max(rowPh, (lastTagEndY + recClaimH + marginSvg) - py);
+                      ? Math.max(rowPh, (lastTagEndY + cTH_svg + marginSvgY) - py)
+                      : Math.max(rowPh, (lastTagEndY + recClaimH + marginSvgY) - py);
 
                     var leftStrip = Math.max(0, firstTagX - px);
                     var rightStrip = Math.max(0, px + extPw - (firstTagX + contentW));
@@ -345,8 +606,8 @@ function LayoutPreview(props) {
 
                     try {
                       console.log("[CENTER-OFFSET] piece " + (row*dN+col+1) +
-                        " offsetX=" + (firstTagX-px-marginSvg).toFixed(2) +
-                        " offsetY=" + (firstTagY-py-marginSvg).toFixed(2) +
+                        " offsetX=" + (firstTagX-px-marginSvgX).toFixed(2) +
+                        " offsetY=" + (firstTagY-py-marginSvgY).toFixed(2) +
                         " usableW=" + usableW.toFixed(2) +
                         " contentW=" + contentW.toFixed(2) +
                         " usableH=" + usableH.toFixed(2) +
@@ -496,23 +757,27 @@ function LayoutPreview(props) {
                 return [pieceGroups, <g key={"reclaim-overlay"}>{reclaimOverlay}</g>];
               })()}
 
-              <g>
-                <line x1={oX} y1={oY - 3} x2={oX} y2={dimY - eO} stroke="#444" strokeWidth={geo.swT} />
-                <line x1={oX + shW} y1={oY - 3} x2={oX + shW} y2={dimY - eO} stroke="#444" strokeWidth={geo.swT} />
-                <line x1={oX - 2} y1={dimY} x2={oX + shW + 2} y2={dimY} stroke="#444" strokeWidth={geo.swT} />
-                <polygon points={oX + "," + dimY + " " + (oX + 4) + "," + (dimY - 1.5) + " " + (oX + 4) + "," + (dimY + 1.5)} fill="#444" />
-                <polygon points={(oX + shW) + "," + dimY + " " + (oX + shW - 4) + "," + (dimY - 1.5) + " " + (oX + shW - 4) + "," + (dimY + 1.5)} fill="#444" />
-                <text x={oX + shW / 2} y={dimY - 5} textAnchor="middle" fontSize={geo.fsD} fontWeight="600" fill="#333" fontFamily="'Courier New',monospace">{lpFmt(dL)}"</text>
-              </g>
+              {viewMode === "sheet" && (
+                <>
+                  <g>
+                    <line x1={oX} y1={oY - 3} x2={oX} y2={dimY - eO} stroke="#444" strokeWidth={geo.swT} />
+                    <line x1={oX + shW} y1={oY - 3} x2={oX + shW} y2={dimY - eO} stroke="#444" strokeWidth={geo.swT} />
+                    <line x1={oX - 2} y1={dimY} x2={oX + shW + 2} y2={dimY} stroke="#444" strokeWidth={geo.swT} />
+                    <polygon points={oX + "," + dimY + " " + (oX + 4) + "," + (dimY - 1.5) + " " + (oX + 4) + "," + (dimY + 1.5)} fill="#444" />
+                    <polygon points={(oX + shW) + "," + dimY + " " + (oX + shW - 4) + "," + (dimY - 1.5) + " " + (oX + shW - 4) + "," + (dimY + 1.5)} fill="#444" />
+                    <text x={oX + shW / 2} y={dimY - 5} textAnchor="middle" fontSize={geo.fsD} fontWeight="600" fill="#333" fontFamily="'Courier New',monospace">{lpFmt(dL)}"</text>
+                  </g>
 
-              <g>
-                <line x1={oX + shW + 3} y1={oY} x2={dimX + eO} y2={oY} stroke="#444" strokeWidth={geo.swT} />
-                <line x1={oX + shW + 3} y1={oY + shH} x2={dimX + eO} y2={oY + shH} stroke="#444" strokeWidth={geo.swT} />
-                <line x1={dimX} y1={oY - 2} x2={dimX} y2={oY + shH + 2} stroke="#444" strokeWidth={geo.swT} />
-                <polygon points={dimX + "," + oY + " " + (dimX - 1.5) + "," + (oY + 4) + " " + (dimX + 1.5) + "," + (oY + 4)} fill="#444" />
-                <polygon points={dimX + "," + (oY + shH) + " " + (dimX - 1.5) + "," + (oY + shH - 4) + " " + (dimX + 1.5) + "," + (oY + shH - 4)} fill="#444" />
-                <text x={dimX + 5} y={oY + shH / 2} textAnchor="start" fontSize={geo.fsD} fontWeight="600" fill="#333" fontFamily="'Courier New',monospace" dominantBaseline="middle" transform={"rotate(90 " + (dimX + 5) + " " + (oY + shH / 2) + ")"}>{lpFmt(dW)}"</text>
-              </g>
+                  <g>
+                    <line x1={oX + shW + 3} y1={oY} x2={dimX + eO} y2={oY} stroke="#444" strokeWidth={geo.swT} />
+                    <line x1={oX + shW + 3} y1={oY + shH} x2={dimX + eO} y2={oY + shH} stroke="#444" strokeWidth={geo.swT} />
+                    <line x1={dimX} y1={oY - 2} x2={dimX} y2={oY + shH + 2} stroke="#444" strokeWidth={geo.swT} />
+                    <polygon points={dimX + "," + oY + " " + (dimX - 1.5) + "," + (oY + 4) + " " + (dimX + 1.5) + "," + (oY + 4)} fill="#444" />
+                    <polygon points={dimX + "," + (oY + shH) + " " + (dimX - 1.5) + "," + (oY + shH - 4) + " " + (dimX + 1.5) + "," + (oY + shH - 4)} fill="#444" />
+                    <text x={dimX + 5} y={oY + shH / 2} textAnchor="start" fontSize={geo.fsD} fontWeight="600" fill="#333" fontFamily="'Courier New',monospace" dominantBaseline="middle" transform={"rotate(90 " + (dimX + 5) + " " + (oY + shH / 2) + ")"}>{lpFmt(dW)}"</text>
+                  </g>
+                </>
+              )}
 
             </svg>
           </div>
@@ -569,9 +834,9 @@ function LayoutPreview(props) {
           <div className="lp-debug-title">Geometry Debug</div>
           <div className="lp-debug-grid">
             <div className="lp-debug-row"><span className="lp-debug-k">Piece Size</span><span className="lp-debug-v">{lpFmt(pL)} x {lpFmt(pW)}"</span></div>
-            <div className="lp-debug-row"><span className="lp-debug-k">Usable Size</span><span className="lp-debug-v">{lpFmt(pL - 2 * margin)} x {lpFmt(pW - 2 * margin)}"</span></div>
+            <div className="lp-debug-row"><span className="lp-debug-k">Usable Size</span><span className="lp-debug-v">{lpFmt(pm.usableL)} x {lpFmt(pm.usableW)}"</span></div>
             <div className="lp-debug-row"><span className="lp-debug-k">Overlap</span><span className="lp-debug-v">{lpFmt(overlap)}" each side</span></div>
-            <div className="lp-debug-row"><span className="lp-debug-k">Margin</span><span className="lp-debug-v">{lpFmt(margin)}" each side</span></div>
+            <div className="lp-debug-row"><span className="lp-debug-k">Margin</span><span className="lp-debug-v">{!isHandFeed ? ("Offset: " + lpFmt(pm.mL * 2) + "\" / " + lpFmt(pm.mW * 2) + "\"") : (lpFmt(margin) + "\" each side")}</span></div>
             <div className="lp-debug-row"><span className="lp-debug-k">Display Rows</span><span className="lp-debug-v">{svgTC}{svgTC !== dTC ? " (base " + dTC + ")" : ""}</span></div>
             <div className="lp-debug-row"><span className="lp-debug-k">Display Cols</span><span className="lp-debug-v">{svgTR}{svgTR !== dTR ? " (base " + dTR + ")" : ""}</span></div>
             <div className="lp-debug-row"><span className="lp-debug-k">Tags/Piece</span><span className="lp-debug-v">{optTagsPerPiece}{rotAdditions > 0 ? " (" + rotAdditions + " rot)" : ""}</span></div>

@@ -41,10 +41,31 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
   var rotCutL = tagW + 2 * overlapIn;
   var rotCutW = tagL + 2 * overlapIn;
 
+  function getUsablePiece(pl, pw) {
+    if (!isHandFeed) {
+      // Offset printing gripper & side margins:
+      // For example: 15x20 -> 14.4x19.5 (0.6" off short side, 0.5" off long side)
+      //              20x26 -> 19.4x25.5 (0.6" off short side, 0.5" off long side)
+      var shortSide = Math.min(pl, pw);
+      var longSide = Math.max(pl, pw);
+      var usableShort = Math.max(0, shortSide - 0.6);
+      var usableLong = Math.max(0, longSide - 0.5);
+      var uL = (pl <= pw) ? usableShort : usableLong;
+      var uW = (pl <= pw) ? usableLong : usableShort;
+      var mSideL = (pl - uL) / 2;
+      var mSideW = (pw - uW) / 2;
+      return { usableL: uL, usableW: uW, mSideL: mSideL, mSideW: mSideW };
+    }
+    var uL = Math.max(0, pl - 2 * marginIn);
+    var uW = Math.max(0, pw - 2 * marginIn);
+    return { usableL: uL, usableW: uW, mSideL: marginIn, mSideW: marginIn };
+  }
+
   function lpFmt(v) { return v.toFixed(3); }
   function evalLayout(pieceL, pieceW, cutL, cutW) {
-    var usableL = Math.max(0, pieceL - 2 * marginIn);
-    var usableW = Math.max(0, pieceW - 2 * marginIn);
+    var uDims = getUsablePiece(pieceL, pieceW);
+    var usableL = uDims.usableL;
+    var usableW = uDims.usableW;
     var rows = cutL > 0 ? Math.floor((usableL + 2 * overlapIn) / cutL) : 0;
     var cols = cutW > 0 ? Math.floor((usableW + 2 * overlapIn) / cutW) : 0;
     var usableL_eff = usableL + 2 * overlapIn;
@@ -73,8 +94,9 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
   }
 
   function evalCornerFitReclaim(pieceL, pieceW, cutL, cutW) {
-    var usableL = Math.max(0, pieceL - 2 * marginIn);
-    var usableW = Math.max(0, pieceW - 2 * marginIn);
+    var uDims = getUsablePiece(pieceL, pieceW);
+    var usableL = uDims.usableL;
+    var usableW = uDims.usableW;
     var usableL_eff = usableL + 2 * overlapIn;
     var usableW_eff = usableW + 2 * overlapIn;
     var rows = cutL > 0 ? Math.floor(usableL_eff / cutL) : 0;
@@ -146,8 +168,9 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
         var pW = sheetW / ni;
         var pL = sheetL / mi;
 
-        if (pW < ori.cutW + 2 * marginIn - 2 * overlapIn) continue;
-        if (pL < ori.cutL + 2 * marginIn - 2 * overlapIn) continue;
+        var uDims = getUsablePiece(pL, pW);
+        if (uDims.usableW + 2 * overlapIn < ori.cutW) continue;
+        if (uDims.usableL + 2 * overlapIn < ori.cutL) continue;
 
         if (!fitsFeed(pL, pW)) {
           rejectLog.push({ piece: lpFmt(pL) + 'x' + lpFmt(pW) + ' (' + ni + 'x' + mi + ')', reason: 'Exceeds feed' });
@@ -169,8 +192,11 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           var rotRowCount = evResult.rotRowCount || 0;
           var rotColCount = evResult.rotColCount || 0;
 
-          var usableL = Math.max(0, pL - 2 * marginIn);
-          var usableW = Math.max(0, pW - 2 * marginIn);
+          var uDims = getUsablePiece(pL, pW);
+          var usableL = uDims.usableL;
+          var usableW = uDims.usableW;
+          var effMarginL = uDims.mSideL;
+          var effMarginW = uDims.mSideW;
           var gridL = evResult.rows > 0 ? evResult.rows * ori.cutL - 2 * overlapIn : 0;
           var gridW = evResult.cols > 0 ? evResult.cols * ori.cutW - 2 * overlapIn : 0;
 
@@ -183,18 +209,18 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           var recClaimL_strip = (rotRowCount > 0) ? ori.cutW : 0;   // right strip extends L
           var recClaimW_strip = (rotColCount > 0 && !isCornerFit) ? ori.cutW : 0; // bottom strip extends W
 
-          var firstTagL = marginIn + Math.max(0, (usableL - gridL) / 2);
+          var firstTagL = effMarginL + Math.max(0, (usableL - gridL) / 2);
           var lastTagEndL = firstTagL + gridL;
-          var firstTagW = marginIn + Math.max(0, (usableW - gridW) / 2);
+          var firstTagW = effMarginW + Math.max(0, (usableW - gridW) / 2);
           var lastTagEndW = firstTagW + gridW;
 
           // For corner-fit: piece must reach (lastTagEndL + cornerTagL + margin) in L and (lastTagEndW + cornerTagW + margin) in W
           var extPL = isCornerFit
-            ? Math.max(pL, lastTagEndL + cTagL + marginIn)
-            : Math.max(pL, lastTagEndL + recClaimL_strip + marginIn);
+            ? Math.max(pL, lastTagEndL + cTagL + effMarginL)
+            : Math.max(pL, lastTagEndL + recClaimL_strip + effMarginL);
           var extPW = isCornerFit
-            ? Math.max(pW, lastTagEndW + cTagW + marginIn)
-            : Math.max(pW, lastTagEndW + recClaimW_strip + marginIn);
+            ? Math.max(pW, lastTagEndW + cTagW + effMarginW)
+            : Math.max(pW, lastTagEndW + recClaimW_strip + effMarginW);
 
           // Incremental per-piece sheet-fit validation along L (columns of pieces)
           var validRotRowCount = 0;
@@ -272,10 +298,58 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
           var outRotRowCount = isCornerFit ? 0 : validRotRowCount;
           var outCornerCount = cornerFitValid ? 1 : 0;
 
+          var mainBlock = {
+            dir: ori.label === 'rotated' ? 'H' : 'V',
+            rows: evResult.rows,
+            cols: evResult.cols,
+            tagL: ori.label === 'rotated' ? tagW : tagL,
+            tagW: ori.label === 'rotated' ? tagL : tagW,
+            cutL: ori.cutL,
+            cutW: ori.cutW,
+            isRotated: ori.label === 'rotated',
+            xOffset: 0,
+            yOffset: 0,
+            count: evResult.rows * evResult.cols
+          };
+          var candBlocks = [mainBlock];
+          if (outRotColCount > 0) {
+            candBlocks.push({
+              dir: ori.label === 'rotated' ? 'V' : 'H',
+              rows: 1,
+              cols: outRotColCount,
+              tagL: ori.label === 'rotated' ? tagL : tagW,
+              tagW: ori.label === 'rotated' ? tagW : tagL,
+              cutL: ori.cutW,
+              cutW: ori.cutL,
+              isRotated: ori.label !== 'rotated',
+              xOffset: 0,
+              yOffset: evResult.rows * ori.cutL,
+              count: outRotColCount,
+              isReclaim: true
+            });
+          }
+          if (outRotRowCount > 0) {
+            candBlocks.push({
+              dir: ori.label === 'rotated' ? 'V' : 'H',
+              rows: outRotRowCount,
+              cols: 1,
+              tagL: ori.label === 'rotated' ? tagL : tagW,
+              tagW: ori.label === 'rotated' ? tagW : tagL,
+              cutL: ori.cutW,
+              cutW: ori.cutL,
+              isRotated: ori.label !== 'rotated',
+              xOffset: evResult.cols * ori.cutW,
+              yOffset: 0,
+              count: outRotRowCount,
+              isReclaim: true
+            });
+          }
+
           candidates.push({
             TL: tagL, TW: tagW,
             n: ni, m: mi,
             pieceL: pL, pieceW: pW,
+            blocks: candBlocks,
             tagsRows: evResult.rows, tagsCols: evResult.cols,
             tagsPerPieceNominal: tagsPerPiece,
             totalTagsPerSheet: totalTags,
@@ -317,75 +391,165 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
             pushCandidate(cf, 'corner-fit');
           }
         }
+        evalHybridDie(pL, pW, ni, mi);
       }
     }
-    
-    // Evaluate mixed strips for this orientation
-    evalMixedStrips({ label: ori.label, cutL: ori.cutL, cutW: ori.cutW });
   }
 
   
-  function evalMixedStrips(ori) {
-    if (!isHandFeed) return;
-    for (var n = 1; n <= 8; n++) {
-      var pW = sheetW / n;
-      
-      var maxK = Math.floor((sheetL - 2 * marginIn) / ori.cutL);
-      for (var k = 1; k < maxK; k++) {
-        var stripAL = k * ori.cutL + 2 * marginIn;
-        var stripBL = sheetL - stripAL;
-        
-        if (!fitsFeed(stripAL, pW) || !meetsMinSize(stripAL, pW)) continue;
-        if (!fitsFeed(stripBL, pW) || !meetsMinSize(stripBL, pW)) continue;
-        
-        var tagsA = evalLayout(stripAL, pW, ori.cutL, ori.cutW);
-        var tagsB = evalLayout(stripBL, pW, ori.cutL, ori.cutW);
-        
-        if (tagsA.total > 0 && tagsB.total > 0) {
-          var fTagsA = tagsA.total + tagsA.reclaimed;
-          var fTagsB = tagsB.total + tagsB.reclaimed;
-          var totalTags = (fTagsA + fTagsB) * n;
-          var util = ((fTagsA + fTagsB) * tagCutL * tagCutW) / (sheetL * pW) * 100;
-          
-          candidates.push({
-            TL: tagL, TW: tagW, n: n, m: 2,
-            pieceL: sheetL, pieceW: pW,
-            isMixed: true,
-            strips: [
-              { L: stripAL, W: pW, rows: tagsA.rows, cols: tagsA.cols, count: n, tagsPerStrip: fTagsA },
-              { L: stripBL, W: pW, rows: tagsB.rows, cols: tagsB.cols, count: n, tagsPerStrip: fTagsB }
-            ],
-            tagsRows: tagsA.rows, tagsCols: tagsA.cols,
-            tagsPerPieceNominal: (tagsA.total + tagsB.total) / 2, // average
-            totalTagsPerSheet: totalTags,
-            reclaimedTags: (tagsA.reclaimed + tagsB.reclaimed) * n,
-            leftoverL: Math.max(tagsA.leftoverL, tagsB.leftoverL),
-            leftoverW: Math.max(tagsA.leftoverW, tagsB.leftoverW),
-            totalPieces: n * 2,
-            sheetsNeeded: orderQty > 0 ? Math.ceil(orderQty / totalTags) : 0,
-            wastePct: Math.max(0, 100 - util),
-            utilization: Math.min(100, util),
-            feedMode: feedLabel,
-            tagDesc: ori.label + ' mixed strips',
-            pieceDesc: 'Mixed',
-            balanceScore: Math.min(tagsA.balanceScore || 100, tagsB.balanceScore || 100),
-            optimization: {
-              baseTags: (tagsA.total + tagsB.total) / 2,
-              addedRows: 0, addedCols: 0,
-              rotAdditions: (tagsA.rotAdditions + tagsB.rotAdditions) / 2,
-              rotColCount: (tagsA.rotColCount + tagsB.rotColCount) / 2,
-              rotRowCount: (tagsA.rotRowCount + tagsB.rotRowCount) / 2,
-              finalTags: (fTagsA + fTagsB) / 2,
-              mainRows: tagsA.rows, mainCols: tagsA.cols,
-              renderRows: tagsA.rows, renderCols: tagsA.cols,
-              balanceScore: 100, hasExtra: false,
-              isTagRotated: ori.label === 'rotated',
-              reclaimedTags: (tagsA.reclaimed + tagsB.reclaimed) / 2,
-              reclaimStrategy: 'strip',
-            }
+    function evalHybridDie(pL, pW, ni, mi) {
+    var uDims = getUsablePiece(pL, pW);
+    var usableL = uDims.usableL;
+    var usableW = uDims.usableW;
+    var usableL_eff = usableL + 2 * overlapIn;
+    var usableW_eff = usableW + 2 * overlapIn;
+    
+    var maxV_R = Math.floor(usableL_eff / tagCutL);
+    var maxV_C = Math.floor(usableW_eff / tagCutW);
+    var maxH_R = Math.floor(usableL_eff / rotCutL);
+    var maxH_C = Math.floor(usableW_eff / rotCutW);
+    
+    if (maxV_R < 1 && maxH_R < 1) return;
+    if (maxV_C < 1 && maxH_C < 1) return;
+    
+    var hybridList = [];
+    
+    // 1. Horizontal Split: Top H + Bottom V (Snap 1)
+    if (maxH_R >= 1 && maxH_C >= 1 && maxV_C >= 1) {
+      for (var r1 = 1; r1 <= maxH_R; r1++) {
+        var remL = usableL_eff - r1 * rotCutL;
+        var r2 = Math.floor(remL / tagCutL);
+        if (r2 >= 1) {
+          var c1 = maxH_C, c2 = maxV_C;
+          var total = r1 * c1 + r2 * c2;
+          hybridList.push({
+            formation: 'split-h-topH-btmV',
+            total: total,
+            desc: 'Hybrid (' + r1 + 'x' + c1 + 'H top + ' + r2 + 'x' + c2 + 'V btm)',
+            blocks: [
+              { dir: 'H', rows: r1, cols: c1, tagL: tagW, tagW: tagL, cutL: rotCutL, cutW: rotCutW, isRotated: true, xOffset: 0, yOffset: 0, count: r1 * c1 },
+              { dir: 'V', rows: r2, cols: c2, tagL: tagL, tagW: tagW, cutL: tagCutL, cutW: tagCutW, isRotated: false, xOffset: 0, yOffset: r1 * rotCutL, count: r2 * c2 }
+            ]
           });
         }
       }
+    }
+
+    // 2. Horizontal Split: Top V + Bottom H (Snap 3)
+    if (maxV_R >= 1 && maxV_C >= 1 && maxH_C >= 1) {
+      for (var r1 = 1; r1 <= maxV_R; r1++) {
+        var remL = usableL_eff - r1 * tagCutL;
+        var r2 = Math.floor(remL / rotCutL);
+        if (r2 >= 1) {
+          var c1 = maxV_C, c2 = maxH_C;
+          var total = r1 * c1 + r2 * c2;
+          hybridList.push({
+            formation: 'split-h-topV-btmH',
+            total: total,
+            desc: 'Hybrid (' + r1 + 'x' + c1 + 'V top + ' + r2 + 'x' + c2 + 'H btm)',
+            blocks: [
+              { dir: 'V', rows: r1, cols: c1, tagL: tagL, tagW: tagW, cutL: tagCutL, cutW: tagCutW, isRotated: false, xOffset: 0, yOffset: 0, count: r1 * c1 },
+              { dir: 'H', rows: r2, cols: c2, tagL: tagW, tagW: tagL, cutL: rotCutL, cutW: rotCutW, isRotated: true, xOffset: 0, yOffset: r1 * tagCutL, count: r2 * c2 }
+            ]
+          });
+        }
+      }
+    }
+
+    // 3. Vertical Split: Left V + Right H (Snap 2)
+    if (maxV_C >= 1 && maxV_R >= 1 && maxH_R >= 1) {
+      for (var c1 = 1; c1 <= maxV_C; c1++) {
+        var remW = usableW_eff - c1 * tagCutW;
+        var c2 = Math.floor(remW / rotCutW);
+        if (c2 >= 1) {
+          var r1 = maxV_R, r2 = maxH_R;
+          var total = r1 * c1 + r2 * c2;
+          hybridList.push({
+            formation: 'split-v-leftV-rightH',
+            total: total,
+            desc: 'Hybrid (' + r1 + 'x' + c1 + 'V left + ' + r2 + 'x' + c2 + 'H right)',
+            blocks: [
+              { dir: 'V', rows: r1, cols: c1, tagL: tagL, tagW: tagW, cutL: tagCutL, cutW: tagCutW, isRotated: false, xOffset: 0, yOffset: 0, count: r1 * c1 },
+              { dir: 'H', rows: r2, cols: c2, tagL: tagW, tagW: tagL, cutL: rotCutL, cutW: rotCutW, isRotated: true, xOffset: c1 * tagCutW, yOffset: 0, count: r2 * c2 }
+            ]
+          });
+        }
+      }
+    }
+
+    // 4. Vertical Split: Left H + Right V
+    if (maxH_C >= 1 && maxH_R >= 1 && maxV_R >= 1) {
+      for (var c1 = 1; c1 <= maxH_C; c1++) {
+        var remW = usableW_eff - c1 * rotCutW;
+        var c2 = Math.floor(remW / tagCutW);
+        if (c2 >= 1) {
+          var r1 = maxH_R, r2 = maxV_R;
+          var total = r1 * c1 + r2 * c2;
+          hybridList.push({
+            formation: 'split-v-leftH-rightV',
+            total: total,
+            desc: 'Hybrid (' + r1 + 'x' + c1 + 'H left + ' + r2 + 'x' + c2 + 'V right)',
+            blocks: [
+              { dir: 'H', rows: r1, cols: c1, tagL: tagW, tagW: tagL, cutL: rotCutL, cutW: rotCutW, isRotated: true, xOffset: 0, yOffset: 0, count: r1 * c1 },
+              { dir: 'V', rows: r2, cols: c2, tagL: tagL, tagW: tagW, cutL: tagCutL, cutW: tagCutW, isRotated: false, xOffset: c1 * rotCutW, yOffset: 0, count: r2 * c2 }
+            ]
+          });
+        }
+      }
+    }
+
+    var totalPieces = ni * mi;
+    var sheetArea = sheetL * sheetW;
+
+    for (var hi = 0; hi < hybridList.length; hi++) {
+      var hItem = hybridList[hi];
+      var totalTags = hItem.total * totalPieces;
+      if (totalTags < 1) continue;
+      
+      var sheetsNeeded = orderQty > 0 ? Math.ceil(orderQty / totalTags) : 0;
+      var totalTagArea = totalTags * tagCutL * tagCutW;
+      var tagAreaUtil = sheetArea > 0 ? Math.min(100, totalTagArea / sheetArea * 100) : 0;
+      var wastePct = Math.max(0, 100 - tagAreaUtil);
+      
+      var hk = tagL + 'x' + tagW + '|hybrid|' + hItem.formation + '|' + hItem.desc + '|' + ni + 'x' + mi;
+      if (seen[hk]) continue;
+      seen[hk] = true;
+      
+      candidates.push({
+        TL: tagL, TW: tagW,
+        n: ni, m: mi,
+        pieceL: pL, pieceW: pW,
+        isHybrid: true,
+        formation: hItem.formation,
+        blocks: hItem.blocks,
+        tagsRows: hItem.blocks[0].rows,
+        tagsCols: hItem.blocks[0].cols,
+        tagsPerPieceNominal: hItem.total,
+        totalTagsPerSheet: totalTags,
+        reclaimedTags: 0,
+        leftoverL: 0, leftoverW: 0,
+        totalPieces: totalPieces,
+        sheetsNeeded: sheetsNeeded,
+        wastePct: Math.min(100, wastePct),
+        utilization: Math.min(100, tagAreaUtil),
+        feedMode: feedLabel,
+        tagDesc: hItem.desc,
+        pieceDesc: lpFmt(pL) + 'x' + lpFmt(pW),
+        balanceScore: 95,
+        optimization: {
+          baseTags: hItem.total,
+          addedRows: 0, addedCols: 0,
+          rotAdditions: 0, rotColCount: 0, rotRowCount: 0,
+          finalTags: hItem.total,
+          mainRows: hItem.blocks[0].rows, mainCols: hItem.blocks[0].cols,
+          renderRows: hItem.blocks[0].rows, renderCols: hItem.blocks[0].cols,
+          balanceScore: 95,
+          hasExtra: false,
+          isTagRotated: false,
+          reclaimedTags: 0,
+          reclaimStrategy: 'hybrid',
+        }
+      });
     }
   }
 
@@ -432,7 +596,7 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
   var dedupSeen = {};
   for (var i = 0; i < candidates.length; i++) {
     var c = candidates[i];
-    var dk = c.TL + '|' + c.TW + '|' + c.pieceL.toFixed(4) + '|' + c.pieceW.toFixed(4) + '|' + c.n + '|' + c.m + '|' + c.tagsRows + '|' + c.tagsCols;
+    var dk = c.TL + '|' + c.TW + '|' + c.pieceL.toFixed(4) + '|' + c.pieceW.toFixed(4) + '|' + c.n + '|' + c.m + '|' + c.tagsRows + '|' + c.tagsCols + '|' + (c.tagDesc || '');
     if (dedupSeen[dk]) continue;
     dedupSeen[dk] = true;
     deduped.push(c);
@@ -485,7 +649,9 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
       console.groupEnd();
     }
   } catch (e) { }
-  window.__LAYOUT_REJECT_LOG__ = rejectLog;
+  if (typeof window !== 'undefined') {
+    window.__LAYOUT_REJECT_LOG__ = rejectLog;
+  }
 
   return top5;
 }

@@ -51,11 +51,12 @@ function analyzeProduction(candidate, sheetL, sheetW) {
       biggest.isFullStrip = true;
     }
   } else {
-    // Uniform grid: single piece type
+    // Uniform grid or hybrid die: all n×m pieces are identical
+    var tpp = candidate.tagsPerPieceNominal || ((candidate.tagsRows || 0) * (candidate.tagsCols || 0));
     pieceTypes = [{
       L: pL, W: pW,
       count: totalPieces,
-      tagsPerPiece: (candidate.tagsRows || 0) * (candidate.tagsCols || 0),
+      tagsPerPiece: tpp,
       rows: candidate.tagsRows || 0,
       cols: candidate.tagsCols || 0,
       isFullStrip: true,
@@ -181,7 +182,8 @@ function analyzeProduction(candidate, sheetL, sheetW) {
   if (utilization >= 88) whySelected.push('Very high paper utilization (' + utilization.toFixed(1) + '%)');
   else if (utilization >= 78) whySelected.push('Good paper utilization (' + utilization.toFixed(1) + '%)');
 
-  if (isMixed) whySelected.push('Mixed strips — recovers extra tags');
+  if (candidate.isHybrid) whySelected.push('Hybrid die — combo orientation maximizes yield');
+  else if (isMixed) whySelected.push('Mixed strips — recovers extra tags');
   if (n === 1 && m > 1) whySelected.push('Simple horizontal strips only');
   if (m === 1 && n > 1) whySelected.push('Simple vertical strips only');
 
