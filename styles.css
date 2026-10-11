@@ -1125,36 +1125,52 @@ html, body { margin: 0; padding: 0; background: #F4F0EA; }
         @media print {
           @page {
             size: A4 landscape;
-            margin: 8mm;
+            margin: 6mm 8mm;
           }
           html, body {
             background: #fff !important;
             color: #000 !important;
             margin: 0 !important;
             padding: 0 !important;
+            height: auto !important;
+            min-height: auto !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          /* Hide app chrome, header, inputs, buttons, cost calculator, etc. */
+
+          /* Hide ALL page chrome, login, headers, tabs, forms, ticket boxes, history, buttons */
           .tc-header,
-          .tc-form-col,
-          .tc-cost-col,
-          .tc-history,
+          .tc-dashboard-menu,
+          .tc-grid,
+          .tc-ticket,
           .tc-assump-toggle,
           .lo-alt-bar,
           .suggestion-banner,
           .production-panel,
           #version-badge,
-          .lo-alt-btn {
+          .lo-alt-btn,
+          .tc-splash,
+          .tc-login-wrap {
             display: none !important;
           }
+
+          .tc-root {
+            background: transparent !important;
+            background-image: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            min-height: auto !important;
+          }
+
           /* Ensure layout preview takes full printable page cleanly */
           .lp-shell {
+            display: block !important;
             border: 1.5px solid #222 !important;
-            border-radius: 0 !important;
+            border-radius: 4px !important;
             box-shadow: none !important;
             background: #fff !important;
             width: 100% !important;
+            margin: 0 !important;
             page-break-inside: avoid !important;
           }
           .lp-title-bar {
@@ -1165,6 +1181,7 @@ html, body { margin: 0; padding: 0; background: #F4F0EA; }
           }
           .lp-title-sub {
             color: #333 !important;
+            font-size: 11px !important;
           }
           .lp-main {
             display: flex !important;
@@ -1172,14 +1189,15 @@ html, body { margin: 0; padding: 0; background: #F4F0EA; }
             background: #fff !important;
           }
           .lp-drawing-col {
-            flex: 1 1 70% !important;
+            flex: 1 1 72% !important;
           }
           .lp-drawing {
             background: #fff !important;
-            padding: 6px !important;
+            padding: 4px 6px !important;
           }
           .lp-svg {
-            max-height: 160mm !important;
+            max-height: 155mm !important;
+            width: 100% !important;
           }
           .lp-info-col {
             flex: 0 0 28% !important;
@@ -1188,19 +1206,24 @@ html, body { margin: 0; padding: 0; background: #F4F0EA; }
             background: #faf8f5 !important;
           }
           .lp-info-panel {
-            padding: 10px 12px !important;
-            gap: 8px !important;
+            padding: 8px 10px !important;
+            gap: 6px !important;
           }
           .lp-info-section-title {
             color: #000 !important;
             font-weight: 700 !important;
+            font-size: 11px !important;
+          }
+          .lp-info-kv {
+            font-size: 11px !important;
           }
           .lp-legend {
             border-top: 1px solid #ccc !important;
-            padding: 6px 10px !important;
+            padding: 4px 8px !important;
           }
           .lp-footer {
             color: #555 !important;
-            padding: 4px 10px 6px !important;
+            padding: 4px 8px !important;
+            font-size: 9px !important;
           }
         }
