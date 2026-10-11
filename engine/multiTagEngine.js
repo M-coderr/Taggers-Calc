@@ -1,7 +1,10 @@
 /**
  * Taggers Calc - Multi-Tag Die Engine (v2.3)
- * Supports multiple tag sizes, custom cavity/slot counts on a single die,
- * automatic block/grid layout optimization, and proportional surface-area costing.
+ * Supports multiple tag sizes on a single die,
+ * strictly enforces EQUAL cavities (UPs) for all tags on the combo die,
+ * treats Order Quantity as required tags per SKU/design (NOT as machine pulls),
+ * optimizes block/grid layout nesting, and allocates costs & prices
+ * strictly proportional to each tag's physical surface area.
  */
 
 var MULTI_TAG_PALETTE = [
@@ -19,7 +22,6 @@ function getMultiTagColor(index) {
 
 /**
  * Returns all factor pairs [rows, cols] such that rows * cols == slots.
- * Also handles prime numbers and allows 1 x slots or slots x 1.
  */
 function getSlotFactorPairs(slots) {
   var s = Math.max(1, Math.round(Number(slots) || 1));
@@ -34,20 +36,46 @@ function getSlotFactorPairs(slots) {
 
 /**
  * Generate all valid multi-tag layouts for a given sheet and list of tags.
+ * All tags on the die share the same cavity count (upsPerTag).
+ * orderQty is the required quantity of tags per design.
  */
-function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, pullsQty, feedOffset, feedHand) {
+function generateMultiTagLayouts(sheetL, sheetW, tagsList, upsPerTag, overlapIn, marginIn, orderQtyPerTag, feedOffset, feedHand) {
   if (!sheetL || !sheetW || sheetL <= 0 || sheetW <= 0) return [];
   if (!tagsList || !Array.isArray(tagsList) || tagsList.length === 0) return [];
 
-  // Filter valid tags
+  // Parse arguments to support both new signature and legacy caller
+  var actualUps = 1;
+  var actualOverlap = 0;
+  var actualMargin = 0;
+  var actualOrderQty = 5000;
+  var actualFeedOffset = feedOffset;
+  var actualFeedHand = feedHand;
+
+  if (typeof upsPerTag === "number" && upsPerTag >= 1 && Number.isInteger(upsPerTag)) {
+    actualUps = Math.max(1, Math.round(upsPerTag));
+    actualOverlap = Number(overlapIn) || 0;
+    actualMargin = Number(marginIn) || 0;
+    actualOrderQty = Math.max(1, Math.round(Number(orderQtyPerTag) || 5000));
+  } else {
+    // Legacy call: (sheetL, sheetW, tagsList, overlapIn, marginIn, orderQtyPerTag, feedOffset, feedHand)
+    actualOverlap = Number(upsPerTag) || 0;
+    actualMargin = Number(overlapIn) || 0;
+    actualOrderQty = Math.max(1, Math.round(Number(marginIn) || 5000));
+    actualFeedOffset = orderQtyPerTag;
+    actualFeedHand = feedOffset;
+    if (tagsList && tagsList[0] && Number(tagsList[0].slots) >= 1) {
+      actualUps = Math.round(Number(tagsList[0].slots));
+    }
+  }
+
+  // Filter valid tags (length and width > 0)
   var validTags = tagsList.filter(function(t) {
-    return t && Number(t.l) > 0 && Number(t.w) > 0 && Number(t.slots) > 0;
+    return t && Number(t.l) > 0 && Number(t.w) > 0;
   });
   if (validTags.length === 0) return [];
 
-  var totalSlots = validTags.reduce(function(acc, t) {
-    return acc + Math.round(Number(t.slots));
-  }, 0);
+  // Every tag on the die has exactly actualUps cavities
+  var totalSlots = validTags.length * actualUps;
   if (totalSlots < 1) return [];
 
   var candidates = [];
@@ -55,12 +83,12 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
 
   var feedL = 0, feedW = 0, feedLabel = "Default";
   var isHandFeed = false;
-  if (feedOffset && feedOffset[0] > 0 && feedOffset[1] > 0) {
-    feedL = feedOffset[0]; feedW = feedOffset[1];
-    feedLabel = "Offset feed " + feedOffset[0] + "x" + feedOffset[1];
-  } else if (feedHand && feedHand[0] > 0 && feedHand[1] > 0) {
-    feedL = feedHand[0]; feedW = feedHand[1];
-    feedLabel = "Hand feed " + feedHand[0] + "x" + feedHand[1];
+  if (actualFeedOffset && actualFeedOffset[0] > 0 && actualFeedOffset[1] > 0) {
+    feedL = actualFeedOffset[0]; feedW = actualFeedOffset[1];
+    feedLabel = "Offset feed " + actualFeedOffset[0] + "x" + actualFeedOffset[1];
+  } else if (actualFeedHand && actualFeedHand[0] > 0 && actualFeedHand[1] > 0) {
+    feedL = actualFeedHand[0]; feedW = actualFeedHand[1];
+    feedLabel = "Hand feed " + actualFeedHand[0] + "x" + actualFeedHand[1];
     isHandFeed = true;
   }
 
@@ -94,22 +122,21 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       return { usableL: uL, usableW: uW, mL: (pl - uL) / 2, mW: (pw - uW) / 2 };
     }
     return {
-      usableL: Math.max(0, pl - 2 * marginIn),
-      usableW: Math.max(0, pw - 2 * marginIn),
-      mL: marginIn,
-      mW: marginIn
+      usableL: Math.max(0, pl - 2 * actualMargin),
+      usableW: Math.max(0, pw - 2 * actualMargin),
+      mL: actualMargin,
+      mW: actualMargin
     };
   }
 
-  // Pre-generate factor options for each tag
+  // Pre-generate factor options for each tag with equal actualUps
   var tagBlockOptions = validTags.map(function(t, tIdx) {
-    var slots = Math.max(1, Math.round(Number(t.slots)));
     var tL = Number(t.l);
     var tW = Number(t.w);
     var color = getMultiTagColor(tIdx);
     var prefix = String.fromCharCode(65 + (tIdx % 26)); // A, B, C...
 
-    var factorPairs = getSlotFactorPairs(slots);
+    var factorPairs = getSlotFactorPairs(actualUps);
     var blockVariations = [];
 
     factorPairs.forEach(function(pair) {
@@ -117,8 +144,8 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       var cols = pair[1];
 
       // Option 1: Normal orientation (tag L along rows, tag W along cols)
-      var cutL_norm = tL + 2 * overlapIn;
-      var cutW_norm = tW + 2 * overlapIn;
+      var cutL_norm = tL + 2 * actualOverlap;
+      var cutW_norm = tW + 2 * actualOverlap;
       var spanL_norm = rows * cutL_norm;
       var spanW_norm = cols * cutW_norm;
 
@@ -129,7 +156,7 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
         tagColor: color,
         tagL: tL,
         tagW: tW,
-        slots: slots,
+        slots: actualUps,
         rows: rows,
         cols: cols,
         cutL: cutL_norm,
@@ -142,8 +169,8 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       });
 
       // Option 2: Rotated 90° (tag W along rows, tag L along cols)
-      var cutL_rot = tW + 2 * overlapIn;
-      var cutW_rot = tL + 2 * overlapIn;
+      var cutL_rot = tW + 2 * actualOverlap;
+      var cutW_rot = tL + 2 * actualOverlap;
       var spanL_rot = rows * cutL_rot;
       var spanW_rot = cols * cutW_rot;
 
@@ -154,7 +181,7 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
         tagColor: color,
         tagL: tW,
         tagW: tL,
-        slots: slots,
+        slots: actualUps,
         rows: rows,
         cols: cols,
         cutL: cutL_rot,
@@ -200,8 +227,8 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       var uDims = getUsablePiece(pL, pW);
       var usableL = uDims.usableL;
       var usableW = uDims.usableW;
-      var effL = usableL + 2 * overlapIn;
-      var effW = usableW + 2 * overlapIn;
+      var effL = usableL + 2 * actualOverlap;
+      var effW = usableW + 2 * actualOverlap;
 
       for (var ci = 0; ci < blockCombinations.length; ci++) {
         var blocks = blockCombinations[ci];
@@ -273,12 +300,19 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
     var totalTagArea = 0;
     for (var i = 0; i < cfg.blocks.length; i++) {
       var bk = cfg.blocks[i];
+      // Area of tags on one die piece
       totalTagArea += (bk.count * bk.tagL * bk.tagW);
     }
 
+    // 1 sheet produces (cfg.totalPieces * actualUps) tags of EACH design
+    var tagsPerSheetPerTag = cfg.totalPieces * actualUps;
+    var sheetsNeeded = actualOrderQty > 0 ? Math.ceil(actualOrderQty / tagsPerSheetPerTag) : 0;
+    var totalPiecesRun = sheetsNeeded * cfg.totalPieces;
+    var tagsProducedPerTag = totalPiecesRun * actualUps;
+    var totalTagsAll = tagsProducedPerTag * validTags.length;
+
     var totalTagsPerSheet = totalSlots * cfg.totalPieces;
-    var sheetsNeeded = pullsQty > 0 ? Math.ceil(pullsQty / cfg.totalPieces) : 0;
-    var totalSheetTagArea = totalTagsPerSheet * (totalTagArea / totalSlots);
+    var totalSheetTagArea = cfg.totalPieces * totalTagArea;
     var util = sheetArea > 0 ? Math.min(100, (totalSheetTagArea / sheetArea) * 100) : 0;
     var wastePct = Math.max(0, 100 - util);
 
@@ -311,11 +345,17 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       leftoverL: Math.max(0, cfg.pL - cfg.boundL),
       leftoverW: Math.max(0, cfg.pW - cfg.boundW),
       sheetsNeeded: sheetsNeeded,
+      totalPiecesRun: totalPiecesRun,
+      tagsProducedPerTag: tagsProducedPerTag,
+      totalTags: totalTagsAll,
       utilization: util,
       wastePct: wastePct,
       blocks: cfg.blocks,
       tagsList: validTags,
+      upsPerTag: actualUps,
       totalSlots: totalSlots,
+      TL: validTags[0] ? Number(validTags[0].l) : 0,
+      TW: validTags[0] ? Number(validTags[0].w) : 0,
       feedMode: feedLabel,
       balanceScore: 100
     });
@@ -333,10 +373,14 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
 
 /**
  * Compute detailed job costing and per-tag selling prices for a Multi-Tag Die run.
+ * Order quantity is strictly treated as required tags per SKU/design.
+ * All tags have identical UPs (upsPerTag).
+ * Selling prices and costs are allocated strictly proportional to physical tag surface area.
  */
-function computeMultiTagCosts(layout, tagsList, params) {
+function computeMultiTagCosts(layout, tagsList, params, upsPerTag) {
   var sheetRate = Number(params.sheetRate) || 0;
-  var pullsQty = Math.max(1, Math.round(Number(params.orderQty) || 5000));
+  var orderQty = Math.max(1, Math.round(Number(params.orderQty) || 5000));
+  var actualUps = Math.max(1, Math.round(Number(params.upsPerTag || upsPerTag || (layout && layout.upsPerTag) || (tagsList && tagsList[0] && tagsList[0].slots) || 1)));
   var printMethod = params.printMethod || "offset";
   var colors = Number(params.colors) || 1;
   var lamination = !!params.lamination;
@@ -354,14 +398,21 @@ function computeMultiTagCosts(layout, tagsList, params) {
   var r = layout && layout.result ? layout.result : layout;
   var piecesPerSheet = (r && r.totalPieces) ? r.totalPieces : 1;
 
-  // In multi-tag combo runs, 1 pull on the machine runs 1 die piece.
-  // Sheets needed to fulfill pulls:
-  var sheetsNeeded = Math.ceil(pullsQty / piecesPerSheet);
-  var totalPieces = sheetsNeeded * piecesPerSheet;
+  var validTags = (r.tagsList && r.tagsList.length > 0) ? r.tagsList : tagsList;
+  if (!validTags || validTags.length === 0) validTags = [{ name: "Tag 1", l: 2, w: 3 }];
+  var totalSlots = validTags.length * actualUps;
+
+  // Order quantity is required tags per design.
+  // 1 sheet produces (piecesPerSheet * actualUps) tags of EACH design.
+  var tagsPerSheetPerTag = piecesPerSheet * actualUps;
+  var sheetsNeeded = Math.ceil(orderQty / tagsPerSheetPerTag);
+  var totalPieces = sheetsNeeded * piecesPerSheet; // Total machine pulls/impressions
+  var tagsProducedPerTag = totalPieces * actualUps;
+  var totalTagsAll = tagsProducedPerTag * validTags.length;
 
   var materialCost = sheetsNeeded * sheetRate;
 
-  // Printing cost based on total machine pieces run
+  // Printing cost based on total machine pieces (pulls) run
   var printSlabs = computeSlabs(totalPieces);
   var printingCost = 0;
   if (totalPieces > 0) {
@@ -377,19 +428,18 @@ function computeMultiTagCosts(layout, tagsList, params) {
   var laminationAreaSqIn = pieceAreaSqIn * totalPieces;
   var laminationCost = lamination ? laminationAreaSqIn * PROCESS_RATES.lamination.ratePerSqIn : 0;
 
-  // Foil calculation
+  // Foil calculation based on total tags run
   var foilArea = foilL * foilW;
   var foilPieceRate = foilArea <= 4 ? 0.20 : (foilArea <= 8 ? 0.25 : 0.30);
-  var totalTagsAll = totalPieces * (r.totalSlots || 1);
-  var foilBlockCost = (foil && pullsQty > 0) ? 250 : 0;
-  var foilRunningCost = (foil && pullsQty > 0) ? totalTagsAll * foilPieceRate : 0;
+  var foilBlockCost = (foil && totalTagsAll > 0) ? 250 : 0;
+  var foilRunningCost = (foil && totalTagsAll > 0) ? totalTagsAll * foilPieceRate : 0;
   var foilCost = foilBlockCost + foilRunningCost;
 
-  // Emboss calculation
+  // Emboss calculation based on total tags run
   var embossArea = embossL * embossW;
   var embossPieceRate = embossArea <= 6 ? 0.25 : 0.30;
-  var embossBlockCost = (emboss && pullsQty > 0) ? (embossArea <= 6 ? 500 : 1000) : 0;
-  var embossRunningCost = (emboss && pullsQty > 0) ? totalTagsAll * embossPieceRate : 0;
+  var embossBlockCost = (emboss && totalTagsAll > 0) ? (embossArea <= 6 ? 500 : 1000) : 0;
+  var embossRunningCost = (emboss && totalTagsAll > 0) ? totalTagsAll * embossPieceRate : 0;
   var embossCost = embossBlockCost + embossRunningCost;
 
   // Die Making and Running
@@ -414,27 +464,25 @@ function computeMultiTagCosts(layout, tagsList, params) {
 
   var profitAmount = sellingPrice - subtotal;
 
-  // Proportional itemized breakdown per tag based on total die slot surface area
-  var validTags = (r.tagsList && r.tagsList.length > 0) ? r.tagsList : tagsList;
-  var totalDieSlotArea = validTags.reduce(function(acc, t) {
-    return acc + (Number(t.slots) * Number(t.l) * Number(t.w));
+  // Proportional itemized breakdown per tag based on physical surface area.
+  // Since all tags have the same upsPerTag, each tag's share of total die surface area
+  // is directly (l_i * w_i) / sum(l_j * w_j).
+  var totalSingleTagArea = validTags.reduce(function(acc, t) {
+    return acc + (Number(t.l) * Number(t.w));
   }, 0);
-  if (totalDieSlotArea <= 0) totalDieSlotArea = 1;
+  if (totalSingleTagArea <= 0) totalSingleTagArea = 1;
 
   var itemizedTags = validTags.map(function(t, idx) {
-    var slots = Math.max(1, Math.round(Number(t.slots)));
     var tL = Number(t.l);
     var tW = Number(t.w);
     var tagArea = tL * tW;
-    var totalSlotAreaForTag = slots * tagArea;
-    var areaShare = totalSlotAreaForTag / totalDieSlotArea;
+    var areaShare = tagArea / totalSingleTagArea;
 
-    var tagQtyProduced = totalPieces * slots;
     var tagAllocatedCost = subtotal * areaShare;
     var tagAllocatedPrice = sellingPrice * areaShare;
 
-    var costPerTag = tagQtyProduced > 0 ? tagAllocatedCost / tagQtyProduced : 0;
-    var pricePerTag = tagQtyProduced > 0 ? tagAllocatedPrice / tagQtyProduced : 0;
+    var costPerTag = tagsProducedPerTag > 0 ? tagAllocatedCost / tagsProducedPerTag : 0;
+    var pricePerTag = tagsProducedPerTag > 0 ? tagAllocatedPrice / tagsProducedPerTag : 0;
 
     return {
       id: t.id || ("t_" + idx),
@@ -443,10 +491,10 @@ function computeMultiTagCosts(layout, tagsList, params) {
       color: getMultiTagColor(idx),
       l: tL,
       w: tW,
-      slots: slots,
+      slots: actualUps,
       tagArea: tagArea,
       areaSharePct: (areaShare * 100),
-      qtyProduced: tagQtyProduced,
+      qtyProduced: tagsProducedPerTag,
       allocatedCost: tagAllocatedCost,
       allocatedPrice: tagAllocatedPrice,
       costPerTag: costPerTag,
@@ -456,40 +504,68 @@ function computeMultiTagCosts(layout, tagsList, params) {
 
   return {
     isMultiTag: true,
-    totalSlots: r.totalSlots || itemizedTags.reduce(function(a, b) { return a + b.slots; }, 0),
-    itemizedTags: itemizedTags,
-    pieceL: r.pieceL, pieceW: r.pieceW,
-    n: r.n, m: r.m,
-    overlapIn: params.overlapIn, marginIn: params.marginIn,
-    totalTagsPerSheet: r.totalTagsPerSheet,
-    autoPiecesPerSheet: piecesPerSheet,
-    piecesPerSheet: piecesPerSheet,
+    orderQty: orderQty,
+    upsPerTag: actualUps,
+    tagsProducedPerTag: tagsProducedPerTag,
+    totalTags: totalTagsAll,
+    totalSlots: totalSlots,
     sheetsNeeded: sheetsNeeded,
     totalPieces: totalPieces,
-    totalTags: totalTagsAll,
-    pullsQty: pullsQty,
     materialCost: materialCost,
-    printSlabs: printSlabs,
     printingCost: printingCost,
-    pieceAreaSqIn: pieceAreaSqIn,
     laminationCost: laminationCost,
-    tier: tier,
-    dieSlabs: dieSlabs,
-    dieRunningCost: dieRunningCost,
-    dieMakingCost: dieMakingCost,
     dieTotalCost: dieTotalCost,
+    dieMakingCost: dieMakingCost,
+    dieRunningCost: dieRunningCost,
     transportCost: transportCost,
-    foilCost: foilCost, foilBlockCost: foilBlockCost, foilRunningCost: foilRunningCost,
-    embossCost: embossCost, embossBlockCost: embossBlockCost, embossRunningCost: embossRunningCost,
+    foilCost: foilCost,
+    foilBlockCost: foilBlockCost,
+    foilRunningCost: foilRunningCost,
+    foilPieceRate: foilPieceRate,
+    foilArea: foilArea,
+    embossCost: embossCost,
+    embossBlockCost: embossBlockCost,
+    embossRunningCost: embossRunningCost,
+    embossPieceRate: embossPieceRate,
+    embossArea: embossArea,
     subtotal: subtotal,
     rawSubtotal: subtotal,
-    costPerTag: totalTagsAll > 0 ? subtotal / totalTagsAll : 0,
-    pricePerTag: totalTagsAll > 0 ? sellingPrice / totalTagsAll : 0,
+    rawCostPerTag: totalTagsAll > 0 ? subtotal / totalTagsAll : 0,
     exactSellingPrice: sellingPrice,
+    exactPricePerTag: totalTagsAll > 0 ? sellingPrice / totalTagsAll : 0,
+    pricePerTag: totalTagsAll > 0 ? sellingPrice / totalTagsAll : 0,
     sellingPrice: sellingPrice,
     profitAmount: profitAmount,
+    overage: totalTagsAll - (orderQty * validTags.length),
+    itemizedTags: itemizedTags,
+    tier: tier,
+    printSlabs: printSlabs,
+    dieSlabs: dieSlabs,
+    pieceAreaSqIn: pieceAreaSqIn,
+    lamination: lamination,
+    foil: foil,
+    foilL: foilL,
+    foilW: foilW,
+    emboss: emboss,
+    embossL: embossL,
+    embossW: embossW,
+    n: r.n,
+    m: r.m,
+    pieceL: r.pieceL,
+    pieceW: r.pieceW,
+    autoPiecesPerSheet: piecesPerSheet,
+    tagsRows: r.tagsRows,
+    tagsCols: r.tagsCols,
+    tagsPerPieceNominal: totalSlots,
+    totalTagsPerSheet: r.totalTagsPerSheet,
+    leftoverL: r.leftoverL,
+    leftoverW: r.leftoverW,
     utilization: r.utilization,
     wastePct: r.wastePct,
+    formation: r.formation,
+    formationLabel: r.formationLabel,
+    TL: r.TL || validTags[0].l,
+    TW: r.TW || validTags[0].w,
     blocks: r.blocks
   };
 }
