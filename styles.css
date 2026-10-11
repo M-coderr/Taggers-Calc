@@ -1227,3 +1227,162 @@ html, body { margin: 0; padding: 0; background: #F4F0EA; }
             font-size: 9px !important;
           }
         }
+
+/* ==========================================================================
+   Multi-Tag Die (Combo Die) UI Styles (v2.3)
+   ========================================================================== */
+
+.tc-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.tc-mode-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: #fdfaf3;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.tc-mode-tab:hover {
+  background: #fff;
+  border-color: var(--stamp);
+}
+.tc-mode-tab-active {
+  background: var(--stamp) !important;
+  border-color: var(--stamp-dark) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px rgba(166, 61, 47, 0.25);
+}
+
+.tc-multi-tags-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.tc-multi-tag-item {
+  background: #fffdf8;
+  border: 1px solid #dcd4be;
+  border-left-width: 4px;
+  border-radius: 6px;
+  padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+.tc-multi-tag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.tc-multi-tag-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.tc-tag-color-pill {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+.tc-multi-tag-inputs {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1.2fr 1.2fr;
+  gap: 8px;
+}
+.tc-multi-tag-del {
+  background: none;
+  border: none;
+  color: #a04030;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.tc-multi-tag-del:hover {
+  opacity: 1;
+  background: rgba(160, 64, 48, 0.1);
+}
+.tc-multi-tag-meta {
+  font-size: 11px;
+  color: #6b5c45;
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.tc-add-tag-btn {
+  background: #fdfaf3;
+  border: 1px dashed var(--line);
+  color: var(--stamp);
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.tc-add-tag-btn:hover {
+  background: #fff;
+  border-color: var(--stamp);
+}
+
+.tc-combo-summary-card {
+  background: #fff;
+  border: 1px solid #ded5be;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+.tc-combo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.tc-combo-table th {
+  text-align: left;
+  padding: 6px 8px;
+  background: #f8f4ea;
+  color: #554839;
+  font-weight: 600;
+  border-bottom: 1px solid #dcd4be;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.tc-combo-table td {
+  padding: 8px 8px;
+  border-bottom: 1px solid #eee7d5;
+  color: #2b211c;
+}
+.tc-combo-table tr:last-child td {
+  border-bottom: none;
+}
+.tc-combo-table tr.tc-combo-total-row td {
+  font-weight: 700;
+  background: #fcf9f2;
+  border-top: 2px solid #dcd4be;
+}
