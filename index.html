@@ -1146,6 +1146,7 @@ function TagCostingCalculator() {
   var tagW = tagW_state[0], setTagW = tagW_state[1];
 
   var jobMode_state = useState("single");
+  var jobMode = jobMode_state[0], setJobMode = jobMode_state[1];
   var multiTags_state = useState([
     { id: "t1", name: "Tag 1", l: 2, w: 4, qty: 5000 },
     { id: "t2", name: "Tag 2", l: 2, w: 4, qty: 5000 },
