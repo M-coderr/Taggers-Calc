@@ -71,7 +71,7 @@ function calculateTagUpRatio(tagsList) {
   var exactSum = exactUps.reduce(function(a, b) { return a + b; }, 0);
   var exactMax = Math.max.apply(null, exactUps);
 
-  if (exactSum <= 20 && exactMax <= 10) {
+  if (exactSum <= 28 && exactMax <= 16) {
     return valid.map(function(t, idx) {
       return Object.assign({}, t, {
         ratioUp: exactUps[idx],
@@ -84,9 +84,13 @@ function calculateTagUpRatio(tagsList) {
   var roundSteps = [500, 250, 100];
   for (var s = 0; s < roundSteps.length; s++) {
     var step = roundSteps[s];
+    var tooDistorted = false;
     var roundedQtys = rawQtys.map(function(q) {
-      return Math.max(step, Math.round(q / step) * step);
+      var rq = Math.max(step, Math.round(q / step) * step);
+      if (Math.abs(q - rq) / q > 0.05) tooDistorted = true;
+      return rq;
     });
+    if (tooDistorted) continue;
     var stepGcd = roundedQtys[0];
     for (var j = 1; j < roundedQtys.length; j++) {
       stepGcd = gcd(stepGcd, roundedQtys[j]);
@@ -94,7 +98,7 @@ function calculateTagUpRatio(tagsList) {
     var stepUps = roundedQtys.map(function(q) { return Math.round(q / stepGcd); });
     var stepSum = stepUps.reduce(function(a, b) { return a + b; }, 0);
     var stepMax = Math.max.apply(null, stepUps);
-    if (stepSum <= 20 && stepMax <= 10) {
+    if (stepSum <= 28 && stepMax <= 16) {
       return valid.map(function(t, idx) {
         return Object.assign({}, t, {
           ratioUp: stepUps[idx],
@@ -104,13 +108,20 @@ function calculateTagUpRatio(tagsList) {
     }
   }
 
-  // 3. Fallback: Search small multiplier D in 1..6 for closest integer ratio
+  // 3. Fallback: Search small multiplier D in 1..4 for closest integer ratio
   var minQ = Math.min.apply(null, rawQtys);
   var floatRatios = rawQtys.map(function(q) { return q / minQ; });
+  var maxRatio = Math.max.apply(null, floatRatios);
+  var maxAllowedUp = 16;
+  if (maxRatio > maxAllowedUp) {
+    var scaleDown = maxAllowedUp / maxRatio;
+    floatRatios = floatRatios.map(function(r) { return Math.max(1, Math.round(r * scaleDown)); });
+  }
+
   var bestD = 1;
   var minErr = Infinity;
 
-  for (var D = 1; D <= 6; D++) {
+  for (var D = 1; D <= 4; D++) {
     var err = 0;
     var candUps = [];
     for (var k = 0; k < floatRatios.length; k++) {
@@ -120,7 +131,8 @@ function calculateTagUpRatio(tagsList) {
       candUps.push(r);
     }
     var cSum = candUps.reduce(function(a, b) { return a + b; }, 0);
-    if (cSum <= 20 && err < minErr) {
+    var cMax = Math.max.apply(null, candUps);
+    if (cSum <= 28 && cMax <= 16 && err < minErr) {
       minErr = err;
       bestD = D;
       if (err < 0.01) break;
@@ -133,6 +145,14 @@ function calculateTagUpRatio(tagsList) {
     gFinal = gcd(gFinal, finalUps[m]);
   }
   finalUps = finalUps.map(function(u) { return Math.max(1, Math.round(u / gFinal)); });
+
+  var sumFinal = finalUps.reduce(function(a, b) { return a + b; }, 0);
+  if (sumFinal > 28 || Math.max.apply(null, finalUps) > 16) {
+    var maxU = Math.max.apply(null, finalUps);
+    finalUps = finalUps.map(function(u) {
+      return Math.max(1, Math.min(16, Math.round((u / maxU) * 16)));
+    });
+  }
 
   return valid.map(function(t, idx) {
     return Object.assign({}, t, {
@@ -162,9 +182,13 @@ function getSlotFactorPairs(slots) {
  * The engine calculates the cavity ratio, tests multipliers (1x, 2x...),
  * packs blocks onto pieces, and evaluates complete job nesting.
  */
-function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, feedOffset, feedHand) {
+function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, feedOffset, feedHand, options) {
   if (!sheetL || !sheetW || sheetL <= 0 || sheetW <= 0) return [];
   if (!tagsList || !Array.isArray(tagsList) || tagsList.length === 0) return [];
+
+  var removeSameTagBleed = false;
+  if (typeof options === "boolean") removeSameTagBleed = options;
+  else if (options && typeof options.removeSameTagBleed === "boolean") removeSameTagBleed = options.removeSameTagBleed;
 
   // Filter valid tags
   var validTags = tagsList.filter(function(t) {
@@ -179,6 +203,7 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
 
   var actualOverlap = Number(overlapIn) || 0;
   var actualMargin = Number(marginIn) || 0;
+  var gutter = 2 * actualOverlap;
 
   var candidates = [];
   var seen = {};
@@ -200,10 +225,12 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
   var MIN_OFFSET_PIECE_LONG = 18;
 
   function fitsFeed(pl, pw) {
+    if (feedL <= 0 || feedW <= 0) return true;
     return (pl <= feedL + 0.01 && pw <= feedW + 0.01) || (pl <= feedW + 0.01 && pw <= feedL + 0.01);
   }
 
   function meetsMinSize(pl, pw) {
+    if (feedL <= 0 && feedW <= 0) return true;
     var shortSide = Math.min(pl, pw);
     var longSide = Math.max(pl, pw);
     if (isHandFeed) {
@@ -247,17 +274,21 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
 
   var sheetArea = sheetL * sheetW;
 
-  // Test multipliers: M = 1, 2, 3, 4 (keeping total cavities <= 28)
-  var multipliers = [1];
-  if (baseSlotsSum * 2 <= 28) multipliers.push(2);
-  if (baseSlotsSum * 3 <= 28) multipliers.push(3);
-  if (baseSlotsSum * 4 <= 28) multipliers.push(4);
+  function runSearchWithTags(activeTags) {
+    var baseSlotsSum = activeTags.reduce(function(acc, t) { return acc + (t.baseSlots || 1); }, 0);
+    if (baseSlotsSum <= 0) return;
 
-  multipliers.forEach(function(M) {
-    var totalSlotsThisM = baseSlotsSum * M;
+    // Test multipliers: M = 1, 2, 3, 4 (keeping total cavities <= 28)
+    var multipliers = [1];
+    if (baseSlotsSum * 2 <= 28) multipliers.push(2);
+    if (baseSlotsSum * 3 <= 28) multipliers.push(3);
+    if (baseSlotsSum * 4 <= 28) multipliers.push(4);
 
-    // Generate block options for each tag at multiplier M
-    var tagBlockOptions = tagsWithRatio.map(function(t, tIdx) {
+    multipliers.forEach(function(M) {
+      var totalSlotsThisM = baseSlotsSum * M;
+
+      // Generate block options for each tag at multiplier M
+      var tagBlockOptions = activeTags.map(function(t, tIdx) {
       var slots = t.baseSlots * M;
       var tL = Number(t.l);
       var tW = Number(t.w);
@@ -270,12 +301,13 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       factorPairs.forEach(function(pair) {
         var rows = pair[0];
         var cols = pair[1];
+        var isShared = !!removeSameTagBleed;
 
         // Normal orientation
-        var cutL_norm = tL + 2 * actualOverlap;
-        var cutW_norm = tW + 2 * actualOverlap;
-        var spanL_norm = rows * cutL_norm;
-        var spanW_norm = cols * cutW_norm;
+        var cutL_norm = isShared ? tL : (tL + 2 * actualOverlap);
+        var cutW_norm = isShared ? tW : (tW + 2 * actualOverlap);
+        var spanL_norm = isShared ? (rows * tL) : (rows * cutL_norm);
+        var spanW_norm = isShared ? (cols * tW) : (cols * cutW_norm);
 
         blockVariations.push({
           tagIndex: tIdx,
@@ -294,14 +326,16 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
           isRotated: false,
           spanL: spanL_norm,
           spanW: spanW_norm,
-          count: rows * cols
+          count: rows * cols,
+          sharedCut: isShared,
+          crease: !!t.crease
         });
 
         // Rotated 90°
-        var cutL_rot = tW + 2 * actualOverlap;
-        var cutW_rot = tL + 2 * actualOverlap;
-        var spanL_rot = rows * cutL_rot;
-        var spanW_rot = cols * cutW_rot;
+        var cutL_rot = isShared ? tW : (tW + 2 * actualOverlap);
+        var cutW_rot = isShared ? tL : (tL + 2 * actualOverlap);
+        var spanL_rot = isShared ? (rows * tW) : (rows * cutL_rot);
+        var spanW_rot = isShared ? (cols * tL) : (cols * cutW_rot);
 
         blockVariations.push({
           tagIndex: tIdx,
@@ -320,7 +354,9 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
           isRotated: true,
           spanL: spanL_rot,
           spanW: spanW_rot,
-          count: rows * cols
+          count: rows * cols,
+          sharedCut: isShared,
+          crease: !!t.crease
         });
       });
 
@@ -329,11 +365,11 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
 
     var blockCombinations = getBlockCombinations(tagBlockOptions);
 
-    // Test sheet subdivisions (1 to 8 pieces across and down)
+    // Test sheet subdivisions (ni across sheetW, mi down sheetL)
     for (var ni = 1; ni <= 8; ni++) {
       for (var mi = 1; mi <= 8; mi++) {
-        var pL = sheetL / ni;
-        var pW = sheetW / mi;
+        var pW = sheetW / ni;
+        var pL = sheetL / mi;
         var totalPieces = ni * mi;
 
         if (!fitsFeed(pL, pW) || !meetsMinSize(pL, pW)) continue;
@@ -427,7 +463,8 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
                 if (b.spanW > rightSpanW) rightSpanW = b.spanW;
               });
 
-              var gangTotalW = leftSpanW + rightSpanW;
+              var gangColGutter = (leftSpanW > 0 && rightSpanW > 0) ? gutter : 0;
+              var gangTotalW = leftSpanW + gangColGutter + rightSpanW;
               var gangMaxL = Math.max(leftSpanL, rightSpanL);
 
               if (gangMaxL <= effL + 0.001 && gangTotalW <= effW + 0.001) {
@@ -439,7 +476,7 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
                 });
                 var yR = 0;
                 rightBlocks.forEach(function(b) {
-                  placedGang.push(Object.assign({}, b, { xOffset: leftSpanW, yOffset: yR }));
+                  placedGang.push(Object.assign({}, b, { xOffset: leftSpanW + gangColGutter, yOffset: yR }));
                   yR += b.spanL;
                 });
 
@@ -454,12 +491,266 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
                   totalSlotsThisM: totalSlotsThisM
                 });
               }
+
+              // Formation 4: 2-Row Split (Top Row + Bottom Row)
+              var topBlocks = leftBlocks;
+              var btmBlocks = rightBlocks;
+              var topSpanW = leftSpanW, topSpanL = leftSpanL;
+              var btmSpanW = rightSpanW, btmSpanL = rightSpanL;
+              var gangRowGutter = (topSpanL > 0 && btmSpanL > 0) ? gutter : 0;
+              var gangRowTotalL = topSpanL + gangRowGutter + btmSpanL;
+              var gangRowMaxW = Math.max(topSpanW, btmSpanW);
+
+              if (gangRowTotalL <= effL + 0.001 && gangRowMaxW <= effW + 0.001) {
+                var placedGangRow = [];
+                var xT = 0;
+                topBlocks.forEach(function(b) {
+                  placedGangRow.push(Object.assign({}, b, { xOffset: xT, yOffset: 0 }));
+                  xT += b.spanW;
+                });
+                var xB = 0;
+                btmBlocks.forEach(function(b) {
+                  placedGangRow.push(Object.assign({}, b, { xOffset: xB, yOffset: topSpanL + gangRowGutter }));
+                  xB += b.spanW;
+                });
+
+                addMultiCandidate({
+                  multiplier: M,
+                  formation: "gang-row",
+                  formationLabel: "2-Row Gang (" + M + "x ratio)",
+                  pL: pL, pW: pW, ni: ni, mi: mi,
+                  totalPieces: totalPieces,
+                  blocks: placedGangRow,
+                  boundL: gangRowTotalL, boundW: gangRowMaxW,
+                  totalSlotsThisM: totalSlotsThisM
+                });
+              }
             }
           }
+        } // end ci
+
+        // Formation 5: Compound Band Gang (Header Band + Multi-column Footer)
+        if (activeTags.length >= 2) {
+          runCompoundBandSearch(pL, pW, ni, mi, totalPieces, effL, effW, M, totalSlotsThisM);
         }
       }
     }
   });
+
+  function runCompoundBandSearch(pL_cur, pW_cur, ni_cur, mi_cur, totalPieces_cur, maxL_box, maxW_box, mult_cur, totalSlots_cur) {
+    if (activeTags.length < 2) return;
+
+    var orientations = [
+      { wLimit: maxW_box, lLimit: maxL_box, isSwapped: false },
+      { wLimit: maxL_box, lLimit: maxW_box, isSwapped: true }
+    ];
+
+    orientations.forEach(function(box) {
+      var boxW = box.wLimit;
+      var boxL = box.lLimit;
+
+      for (var aIdx = 0; aIdx < activeTags.length; aIdx++) {
+        var tA = activeTags[aIdx];
+        var slotsA = tA.baseSlots * mult_cur;
+
+        var orientsA = [
+          { w: Number(tA.w), l: Number(tA.l), isRot: false },
+          { w: Number(tA.l), l: Number(tA.w), isRot: true }
+        ];
+
+        for (var oa = 0; oa < orientsA.length; oa++) {
+          var oA = orientsA[oa];
+          var wA = oA.w;
+          var lA = oA.l;
+
+          for (var rA = 1; rA <= slotsA; rA++) {
+            if (slotsA % rA !== 0) continue;
+            var numStripsA = slotsA / rA;
+            var stripH_A = rA * lA;
+            var stripW_A = wA;
+
+            for (var k2 = 1; k2 < numStripsA; k2++) {
+              var k1 = numStripsA - k2;
+              var b1W = k1 * stripW_A + (k1 - 1) * gutter;
+              var b1H = stripH_A;
+
+              if (b1W > boxW + 0.001 || b1H > boxL + 0.001) continue;
+
+              if (activeTags.length === 3) {
+                for (var cIdx = 0; cIdx < activeTags.length; cIdx++) {
+                  if (cIdx === aIdx) continue;
+                  var tC = activeTags[cIdx];
+                  var slotsC = tC.baseSlots * mult_cur;
+
+                  var orientsC = [
+                    { w: Number(tC.w), l: Number(tC.l), isRot: false },
+                    { w: Number(tC.l), l: Number(tC.w), isRot: true }
+                  ];
+
+                  for (var oc = 0; oc < orientsC.length; oc++) {
+                    var oC = orientsC[oc];
+                    var wC = oC.w;
+                    var lC = oC.l;
+
+                    for (var rC = 1; rC <= slotsC; rC++) {
+                      if (slotsC % rC !== 0) continue;
+                      var numStripsC = slotsC / rC;
+                      if (numStripsC !== k2) continue;
+                      if (Math.abs(wA - wC) > 0.1) continue;
+
+                      var stripH_C = rC * lC;
+                      var stripW_C = wC;
+                      var bIdx = 3 - aIdx - cIdx;
+                      var tB = activeTags[bIdx];
+                      var slotsB = tB.baseSlots * mult_cur;
+
+                      var orientsB = [
+                        { w: Number(tB.w), l: Number(tB.l), isRot: false },
+                        { w: Number(tB.l), l: Number(tB.w), isRot: true }
+                      ];
+
+                      for (var ob = 0; ob < orientsB.length; ob++) {
+                        var oB = orientsB[ob];
+                        var wB = oB.w;
+                        var lB = oB.l;
+
+                        for (var rB = 1; rB <= slotsB; rB++) {
+                          if (slotsB % rB !== 0) continue;
+                          var numStripsB = slotsB / rB;
+                          var stripH_B = rB * lB;
+                          var stripW_B = wB;
+
+                          var b2W = numStripsB * stripW_B + k2 * stripW_A + (numStripsB + k2 - 1) * gutter;
+                          var colAC_H = stripH_A + gutter + stripH_C;
+                          var b2H = Math.max(stripH_B, colAC_H);
+
+                          var totalW = Math.max(b1W, b2W);
+                          var totalH = b1H + gutter + b2H;
+
+                          if (totalW <= boxW + 0.001 && totalH <= boxL + 0.001) {
+                            var placedBlocks = [];
+
+                            // Band 1: k1 strips of Tag A
+                            for (var i1 = 0; i1 < k1; i1++) {
+                              var x1 = i1 * (stripW_A + gutter);
+                              var y1 = 0;
+                              placedBlocks.push({
+                                tagIndex: aIdx,
+                                tagName: tA.name || ("Tag " + (aIdx + 1)),
+                                tagPrefix: String.fromCharCode(65 + (aIdx % 26)),
+                                tagColor: getMultiTagColor(aIdx),
+                                tagL: lA, tagW: wA,
+                                targetQty: Math.max(1, Math.round(Number(tA.qty) || 5000)),
+                                ratioUp: tA.ratioUp,
+                                slots: rA,
+                                rows: rA, cols: 1,
+                                cutL: lA, cutW: wA,
+                                isRotated: oA.isRot,
+                                spanL: stripH_A, spanW: stripW_A,
+                                xOffset: box.isSwapped ? y1 : x1,
+                                yOffset: box.isSwapped ? x1 : y1,
+                                count: rA,
+                                sharedCut: removeSameTagBleed,
+                                crease: !!tA.crease
+                              });
+                            }
+
+                            // Band 2: numStripsB strips of Tag B
+                            var y_b2 = b1H + gutter;
+                            for (var iB = 0; iB < numStripsB; iB++) {
+                              var xB = iB * (stripW_B + gutter);
+                              var yB = y_b2;
+                              placedBlocks.push({
+                                tagIndex: bIdx,
+                                tagName: tB.name || ("Tag " + (bIdx + 1)),
+                                tagPrefix: String.fromCharCode(65 + (bIdx % 26)),
+                                tagColor: getMultiTagColor(bIdx),
+                                tagL: lB, tagW: wB,
+                                targetQty: Math.max(1, Math.round(Number(tB.qty) || 5000)),
+                                ratioUp: tB.ratioUp,
+                                slots: rB,
+                                rows: rB, cols: 1,
+                                cutL: lB, cutW: wB,
+                                isRotated: oB.isRot,
+                                spanL: stripH_B, spanW: stripW_B,
+                                xOffset: box.isSwapped ? yB : xB,
+                                yOffset: box.isSwapped ? xB : yB,
+                                count: rB,
+                                sharedCut: removeSameTagBleed,
+                                crease: !!tB.crease
+                              });
+                            }
+
+                            // Band 2: k2 composite columns (Tag A on top of Tag C)
+                            var x_comp = Math.max(numStripsB * (stripW_B + gutter), b1W - (k2 * stripW_A + (k2 - 1) * gutter));
+                            for (var i2 = 0; i2 < k2; i2++) {
+                              var xCol = x_comp + i2 * (stripW_A + gutter);
+                              placedBlocks.push({
+                                tagIndex: aIdx,
+                                tagName: tA.name || ("Tag " + (aIdx + 1)),
+                                tagPrefix: String.fromCharCode(65 + (aIdx % 26)),
+                                tagColor: getMultiTagColor(aIdx),
+                                tagL: lA, tagW: wA,
+                                targetQty: Math.max(1, Math.round(Number(tA.qty) || 5000)),
+                                ratioUp: tA.ratioUp,
+                                slots: rA,
+                                rows: rA, cols: 1,
+                                cutL: lA, cutW: wA,
+                                isRotated: oA.isRot,
+                                spanL: stripH_A, spanW: stripW_A,
+                                xOffset: box.isSwapped ? y_b2 : xCol,
+                                yOffset: box.isSwapped ? xCol : y_b2,
+                                count: rA,
+                                sharedCut: removeSameTagBleed,
+                                crease: !!tA.crease
+                              });
+
+                              var y_c = y_b2 + stripH_A + gutter;
+                              placedBlocks.push({
+                                tagIndex: cIdx,
+                                tagName: tC.name || ("Tag " + (cIdx + 1)),
+                                tagPrefix: String.fromCharCode(65 + (cIdx % 26)),
+                                tagColor: getMultiTagColor(cIdx),
+                                tagL: lC, tagW: wC,
+                                targetQty: Math.max(1, Math.round(Number(tC.qty) || 5000)),
+                                ratioUp: tC.ratioUp,
+                                slots: rC,
+                                rows: rC, cols: 1,
+                                cutL: lC, cutW: wC,
+                                isRotated: oC.isRot,
+                                spanL: stripH_C, spanW: stripW_C,
+                                xOffset: box.isSwapped ? y_c : xCol,
+                                yOffset: box.isSwapped ? xCol : y_c,
+                                count: rC,
+                                sharedCut: removeSameTagBleed,
+                                crease: !!tC.crease
+                              });
+                            }
+
+                            addMultiCandidate({
+                              multiplier: mult_cur,
+                              formation: "compound-band",
+                              formationLabel: "Compound Gang (" + mult_cur + "x ratio)",
+                              pL: pL_cur, pW: pW_cur, ni: ni_cur, mi: mi_cur,
+                              totalPieces: totalPieces_cur,
+                              blocks: placedBlocks,
+                              boundL: box.isSwapped ? totalW : totalH,
+                              boundW: box.isSwapped ? totalH : totalW,
+                              totalSlotsThisM: totalSlots_cur
+                            });
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+  }
 
   function addMultiCandidate(cfg) {
     var totalTagArea = 0;
@@ -469,10 +760,22 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
     }
 
     // Determine sheets needed so EVERY tag fulfills its entered order quantity
-    var sheetsNeeded = 0;
+    var slotsByTag = {};
+    var targetQtyByTag = {};
+    var nameByTag = {};
     cfg.blocks.forEach(function(bk) {
-      var tagsPerSheetForThisTag = cfg.totalPieces * bk.slots;
-      var sheetsForThis = Math.ceil(bk.targetQty / tagsPerSheetForThisTag);
+      var tIdx = bk.tagIndex != null ? bk.tagIndex : 0;
+      slotsByTag[tIdx] = (slotsByTag[tIdx] || 0) + bk.slots;
+      targetQtyByTag[tIdx] = bk.targetQty;
+      nameByTag[tIdx] = bk.tagName;
+    });
+
+    var sheetsNeeded = 0;
+    Object.keys(slotsByTag).forEach(function(tIdx) {
+      var totalSlotsForThisTag = slotsByTag[tIdx];
+      var tagsPerSheetForThisTag = cfg.totalPieces * totalSlotsForThisTag;
+      var target = targetQtyByTag[tIdx] || 5000;
+      var sheetsForThis = Math.ceil(target / tagsPerSheetForThisTag);
       if (sheetsForThis > sheetsNeeded) {
         sheetsNeeded = sheetsForThis;
       }
@@ -480,8 +783,8 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
 
     var totalPiecesRun = sheetsNeeded * cfg.totalPieces;
     var totalTagsAll = 0;
-    cfg.blocks.forEach(function(bk) {
-      totalTagsAll += (totalPiecesRun * bk.slots);
+    Object.keys(slotsByTag).forEach(function(tIdx) {
+      totalTagsAll += (totalPiecesRun * slotsByTag[tIdx]);
     });
 
     var totalTagsPerSheet = cfg.totalSlotsThisM * cfg.totalPieces;
@@ -489,8 +792,8 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
     var util = sheetArea > 0 ? Math.min(100, (totalSheetTagArea / sheetArea) * 100) : 0;
     var wastePct = Math.max(0, 100 - util);
 
-    var descParts = cfg.blocks.map(function(b) {
-      return b.tagName + " (" + b.slots + " UP)";
+    var descParts = Object.keys(slotsByTag).map(function(tIdx) {
+      return nameByTag[tIdx] + " (" + slotsByTag[tIdx] + " UP)";
     });
     var k = cfg.ni + "x" + cfg.mi + "|" + cfg.formation + "|" + cfg.multiplier + "x|" + descParts.join("+");
     if (seen[k]) return;
@@ -524,13 +827,31 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       utilization: util,
       wastePct: wastePct,
       blocks: cfg.blocks,
-      tagsList: tagsWithRatio,
+      tagsList: activeTags,
       totalSlots: cfg.totalSlotsThisM,
-      TL: tagsWithRatio[0] ? Number(tagsWithRatio[0].l) : 0,
-      TW: tagsWithRatio[0] ? Number(tagsWithRatio[0].w) : 0,
+      TL: activeTags[0] ? Number(activeTags[0].l) : 0,
+      TW: activeTags[0] ? Number(activeTags[0].w) : 0,
       feedMode: feedLabel,
       balanceScore: 100
     });
+  }
+  } // end runSearchWithTags
+
+  runSearchWithTags(tagsWithRatio);
+
+  if (candidates.length === 0 && tagsWithRatio.some(function(t) { return t.baseSlots > 1; })) {
+    var halfTags = tagsWithRatio.map(function(t) {
+      var h = Math.max(1, Math.round(t.baseSlots / 2));
+      return Object.assign({}, t, { ratioUp: h, baseSlots: h });
+    });
+    runSearchWithTags(halfTags);
+
+    if (candidates.length === 0) {
+      var eqTags = tagsWithRatio.map(function(t) {
+        return Object.assign({}, t, { ratioUp: 1, baseSlots: 1 });
+      });
+      runSearchWithTags(eqTags);
+    }
   }
 
   // Sort candidates by highest sheet utilization, then smallest sheet count
@@ -637,18 +958,41 @@ function computeMultiTagCosts(layout, tagsList, params) {
   var profitAmount = sellingPrice - subtotal;
 
   // Proportional itemized breakdown per tag based on total die slot surface area
-  // Area on die for tag i = slots_i * L_i * W_i
-  var totalDieSurfaceArea = blocks.reduce(function(acc, b) {
-    return acc + (b.slots * b.tagL * b.tagW);
-  }, 0);
+  // Group blocks by tagIndex so multiple strips of the same tag SKU form one itemized entry
+  var tagAggregates = {};
+  blocks.forEach(function(b) {
+    var tIdx = b.tagIndex != null ? b.tagIndex : 0;
+    if (!tagAggregates[tIdx]) {
+      tagAggregates[tIdx] = {
+        tagIndex: tIdx,
+        name: b.tagName,
+        prefix: b.tagPrefix,
+        color: b.tagColor,
+        l: b.tagL,
+        w: b.tagW,
+        targetQty: b.targetQty,
+        ratioUp: b.ratioUp,
+        slots: 0,
+        crease: !!b.crease
+      };
+    }
+    tagAggregates[tIdx].slots += b.slots;
+  });
+
+  var totalDieSurfaceArea = 0;
+  Object.keys(tagAggregates).forEach(function(tIdx) {
+    var agg = tagAggregates[tIdx];
+    totalDieSurfaceArea += (agg.slots * agg.l * agg.w);
+  });
   if (totalDieSurfaceArea <= 0) totalDieSurfaceArea = 1;
 
-  var itemizedTags = blocks.map(function(b, idx) {
-    var tagArea = b.tagL * b.tagW;
-    var tagTotalDieArea = b.slots * tagArea;
+  var itemizedTags = Object.keys(tagAggregates).map(function(tIdx) {
+    var agg = tagAggregates[tIdx];
+    var tagArea = agg.l * agg.w;
+    var tagTotalDieArea = agg.slots * tagArea;
     var areaShare = tagTotalDieArea / totalDieSurfaceArea;
 
-    var qtyProduced = totalPieces * b.slots;
+    var qtyProduced = totalPieces * agg.slots;
     var tagAllocatedCost = subtotal * areaShare;
     var tagAllocatedPrice = sellingPrice * areaShare;
 
@@ -656,16 +1000,16 @@ function computeMultiTagCosts(layout, tagsList, params) {
     var pricePerTag = qtyProduced > 0 ? tagAllocatedPrice / qtyProduced : 0;
 
     return {
-      id: "mt_" + idx,
-      name: b.tagName,
-      prefix: b.tagPrefix,
-      color: b.tagColor,
-      l: b.tagL,
-      w: b.tagW,
-      targetQty: b.targetQty,
-      qtyRequired: b.targetQty,
-      ratioUp: b.ratioUp,
-      slots: b.slots,
+      id: "mt_" + tIdx,
+      name: agg.name,
+      prefix: agg.prefix,
+      color: agg.color,
+      l: agg.l,
+      w: agg.w,
+      targetQty: agg.targetQty,
+      qtyRequired: agg.targetQty,
+      ratioUp: agg.ratioUp,
+      slots: agg.slots,
       tagArea: tagArea,
       areaSharePct: (areaShare * 100),
       qtyProduced: qtyProduced,

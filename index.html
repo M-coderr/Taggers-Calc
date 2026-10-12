@@ -30,7 +30,7 @@
 
 <script src="engine/wasteEngine.js?v=2.2"></script>
 <script src="engine/costingEngine.js?v=2.2"></script>
-<script src="engine/multiTagEngine.js?v=2.3"></script>
+<script src="engine/multiTagEngine.js?v=2.5"></script>
 <script src="engine/layoutRegressionTests.js?v=2.2"></script>
 
 <script type="text/babel" data-presets="react">
@@ -59,7 +59,7 @@ function renderTagShape(opts) {
   var L = opts.layers;
   var cr = sty.cornerRadius * sc;
 
-  if (L.bleed) {
+  if (L.bleed && !opts.sharedCut) {
     var bw = tw + 2 * sty.bleedLine.outset * sc;
     var bh = th + 2 * sty.bleedLine.outset * sc;
     els.push(
@@ -80,6 +80,36 @@ function renderTagShape(opts) {
     );
   }
 
+  if (opts.crease) {
+    var creaseCol = "#4a148c";
+    if (tw >= th) {
+      els.push(
+        <line key="crease-line" x1={cx} y1={ty} x2={cx} y2={ty + th} stroke={creaseCol} strokeWidth="1.2" strokeDasharray="none" />
+      );
+      if (th > 20) {
+        var fsCrease = Math.max(5, Math.min(7, sc * 0.45));
+        els.push(
+          <text key="crease-txt" x={cx - 3} y={cy} textAnchor="middle" dominantBaseline="central"
+            fontSize={fsCrease} fontWeight="700" letterSpacing="1"
+            fill={creaseCol} fontFamily="'Courier New',monospace"
+            transform={"rotate(-90 " + (cx - 3) + " " + cy + ")"}>CREASING</text>
+        );
+      }
+    } else {
+      els.push(
+        <line key="crease-line" x1={tx} y1={cy} x2={tx + tw} y2={cy} stroke={creaseCol} strokeWidth="1.2" strokeDasharray="none" />
+      );
+      if (tw > 20) {
+        var fsCrease2 = Math.max(5, Math.min(7, sc * 0.45));
+        els.push(
+          <text key="crease-txt" x={cx} y={cy - 3} textAnchor="middle" dominantBaseline="central"
+            fontSize={fsCrease2} fontWeight="700" letterSpacing="1"
+            fill={creaseCol} fontFamily="'Courier New',monospace">CREASING</text>
+        );
+      }
+    }
+  }
+
   if (L.safe) {
     var sw = tw - 2 * sty.safeLine.inset * sc;
     var sh = th - 2 * sty.safeLine.inset * sc;
@@ -95,19 +125,34 @@ function renderTagShape(opts) {
 
   if (L.hole) {
     var hr = sty.hole.radius * sc;
-    var holeMargin = Math.max(hr + 2, Math.min(tw, th) * 0.18);
-    var hx = cx, hy = cy;
-    if (tw <= th) {
-      hx = cx;
-      hy = ty + holeMargin;
+    if (opts.crease) {
+      if (tw >= th) {
+        var offX = tw * 0.25;
+        els.push(
+          <circle key="hole-l" cx={cx - offX} cy={cy} r={hr} fill="#fff" stroke={sty.hole.color} strokeWidth={sty.hole.width} />,
+          <circle key="hole-r" cx={cx + offX} cy={cy} r={hr} fill="#fff" stroke={sty.hole.color} strokeWidth={sty.hole.width} />
+        );
+      } else {
+        var offY = th * 0.25;
+        els.push(
+          <circle key="hole-t" cx={cx} cy={cy - offY} r={hr} fill="#fff" stroke={sty.hole.color} strokeWidth={sty.hole.width} />,
+          <circle key="hole-b" cx={cx} cy={cy + offY} r={hr} fill="#fff" stroke={sty.hole.color} strokeWidth={sty.hole.width} />
+        );
+      }
     } else {
-      hx = tx + holeMargin;
-      hy = cy;
+      var holeMargin = Math.max(hr + 2, Math.min(tw, th) * 0.18);
+      var hx = cx, hy = cy;
+      if (tw <= th) {
+        hx = cx;
+        hy = ty + holeMargin;
+      } else {
+        hx = tx + holeMargin;
+        hy = cy;
+      }
+      els.push(
+        <circle key="hole" cx={hx} cy={hy} r={hr} fill="#fff" stroke={sty.hole.color} strokeWidth={sty.hole.width} />
+      );
     }
-    els.push(
-      <circle key="hole" cx={hx} cy={hy} r={hr}
-        fill="#fff" stroke={sty.hole.color} strokeWidth={sty.hole.width} />
-    );
   }
 
   if (L.center) {
@@ -348,8 +393,18 @@ function LayoutPreview(props) {
               {viewMode === "sheet" && (
                 <>
                   <rect x={oX} y={oY} width={shW} height={shH} fill="#ffffff" stroke="#2a2a2a" strokeWidth={geo.swE} />
-                  {wasteR > 0.5 && <rect x={oX + shW - wasteR} y={oY} width={wasteR} height={shH} fill="url(#lp-hatch)" stroke="none" />}
-                  {wasteB > 0.5 && <rect x={oX} y={oY + shH - wasteB} width={shW} height={wasteB} fill="url(#lp-hatch)" stroke="none" />}
+                  {wasteR > 0.5 && (
+                    <>
+                      <rect x={oX} y={oY} width={wasteR / 2} height={shH} fill="url(#lp-hatch)" stroke="none" />
+                      <rect x={oX + shW - wasteR / 2} y={oY} width={wasteR / 2} height={shH} fill="url(#lp-hatch)" stroke="none" />
+                    </>
+                  )}
+                  {wasteB > 0.5 && (
+                    <>
+                      <rect x={oX} y={oY} width={shW} height={wasteB / 2} fill="url(#lp-hatch)" stroke="none" />
+                      <rect x={oX + shH - wasteB / 2} width={shW} height={wasteB / 2} fill="url(#lp-hatch)" stroke="none" />
+                    </>
+                  )}
                 </>
               )}
 
@@ -382,8 +437,10 @@ function LayoutPreview(props) {
                   if (candBlocks) {
                     var dieMaxX = 0, dieMaxY = 0;
                     candBlocks.forEach(function(b) {
-                      var bSpanX = (rotated ? (b.xOffset + b.cols * b.cutW) : (b.yOffset + b.rows * b.cutL)) - 2 * overlap;
-                      var bSpanY = (rotated ? (b.yOffset + b.rows * b.cutL) : (b.xOffset + b.cols * b.cutW)) - 2 * overlap;
+                      var isSh = !!(b.sharedCut || props.removeSameTagBleed);
+                      var bSpanX = (rotated ? (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)) : (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)));
+                      var bSpanY = (rotated ? (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)) : (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)));
+                      if (!isSh) { bSpanX -= 2 * overlap; bSpanY -= 2 * overlap; }
                       if (bSpanX > dieMaxX) dieMaxX = bSpanX;
                       if (bSpanY > dieMaxY) dieMaxY = bSpanY;
                     });
@@ -392,12 +449,13 @@ function LayoutPreview(props) {
                     var tagCounter = 0;
 
                     candBlocks.forEach(function(b, bi) {
+                      var isSh = !!(b.sharedCut || props.removeSameTagBleed);
                       var bOffX = (rotated ? b.xOffset : b.yOffset) * scDie;
                       var bOffY = (rotated ? b.yOffset : b.xOffset) * scDie;
-                      var pitchX = (rotated ? b.cutW : b.cutL) * scDie;
-                      var pitchY = (rotated ? b.cutL : b.cutW) * scDie;
-                      var tw = (rotated ? b.cutW - 2 * overlap : b.cutL - 2 * overlap) * scDie;
-                      var th = (rotated ? b.cutL - 2 * overlap : b.cutW - 2 * overlap) * scDie;
+                      var tw = (rotated ? b.tagW : b.tagL) * scDie;
+                      var th = (rotated ? b.tagL : b.tagW) * scDie;
+                      var pitchX = (rotated ? (isSh ? b.tagW : b.cutW) : (isSh ? b.tagL : b.cutL)) * scDie;
+                      var pitchY = (rotated ? (isSh ? b.tagL : b.cutL) : (isSh ? b.tagW : b.cutW)) * scDie;
 
                       var loopCols = rotated ? b.cols : b.rows;
                       var loopRows = rotated ? b.rows : b.cols;
@@ -417,7 +475,9 @@ function LayoutPreview(props) {
                                 x: tx, y: ty, w: tw, h: th, sc: scDie,
                                 style: TAG_STYLE, layers: L,
                                 id: tagId, showId: showId, idFontSize: idFontSize,
-                                tagColor: b.tagColor
+                                tagColor: b.tagColor,
+                                crease: !!b.crease,
+                                sharedCut: isSh
                               })}
                             </g>
                           );
@@ -464,8 +524,10 @@ function LayoutPreview(props) {
                 if (candBlocks) {
                   var dieMaxX = 0, dieMaxY = 0;
                   candBlocks.forEach(function(b) {
-                    var bSpanX = (rotated ? (b.xOffset + b.cols * b.cutW) : (b.yOffset + b.rows * b.cutL)) - 2 * overlap;
-                    var bSpanY = (rotated ? (b.yOffset + b.rows * b.cutL) : (b.xOffset + b.cols * b.cutW)) - 2 * overlap;
+                    var isSh = !!(b.sharedCut || props.removeSameTagBleed);
+                    var bSpanX = (rotated ? (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)) : (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)));
+                    var bSpanY = (rotated ? (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)) : (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)));
+                    if (!isSh) { bSpanX -= 2 * overlap; bSpanY -= 2 * overlap; }
                     if (bSpanX > dieMaxX) dieMaxX = bSpanX;
                     if (bSpanY > dieMaxY) dieMaxY = bSpanY;
                   });
@@ -497,12 +559,13 @@ function LayoutPreview(props) {
                       var blockEls = [];
 
                       candBlocks.forEach(function(b, bi) {
+                        var isSh = !!(b.sharedCut || props.removeSameTagBleed);
                         var bOffX = (rotated ? b.xOffset : b.yOffset) * sc;
                         var bOffY = (rotated ? b.yOffset : b.xOffset) * sc;
-                        var pitchX = (rotated ? b.cutW : b.cutL) * sc;
-                        var pitchY = (rotated ? b.cutL : b.cutW) * sc;
-                        var tw = (rotated ? b.cutW - 2 * overlap : b.cutL - 2 * overlap) * sc;
-                        var th = (rotated ? b.cutL - 2 * overlap : b.cutW - 2 * overlap) * sc;
+                        var tw = (rotated ? b.tagW : b.tagL) * sc;
+                        var th = (rotated ? b.tagL : b.tagW) * sc;
+                        var pitchX = (rotated ? (isSh ? b.tagW : b.cutW) : (isSh ? b.tagL : b.cutL)) * sc;
+                        var pitchY = (rotated ? (isSh ? b.tagL : b.cutL) : (isSh ? b.tagW : b.cutW)) * sc;
 
                         var loopCols = rotated ? b.cols : b.rows;
                         var loopRows = rotated ? b.rows : b.cols;
@@ -523,7 +586,9 @@ function LayoutPreview(props) {
                                   x: tx, y: ty, w: tw, h: th, sc: sc,
                                   style: TAG_STYLE, layers: L,
                                   id: tagId, showId: showId, idFontSize: idFontSize,
-                                  tagColor: b.tagColor
+                                  tagColor: b.tagColor,
+                                  crease: !!b.crease,
+                                  sharedCut: isSh
                                 })}
                               </g>
                             );
@@ -533,7 +598,7 @@ function LayoutPreview(props) {
 
                       pieceGroups.push(
                         <g key={"p-" + row + "-" + col}>
-                          <rect x={px} y={py} width={pw} height={ph} fill="none" stroke="#888" strokeWidth={geo.swT} />
+                          <rect x={px} y={py} width={pw} height={ph} fill="#ffffff" stroke="#888" strokeWidth={geo.swT} />
                           {blockEls}
                         </g>
                       );
@@ -657,7 +722,7 @@ function LayoutPreview(props) {
 
                     pieceGroups.push(
                       <g key={"p" + row + "-" + col}>
-                        <rect x={px} y={py} width={extPw} height={extPh} fill="none" stroke="#999" strokeWidth={geo.swT} />
+                        <rect x={px} y={py} width={extPw} height={extPh} fill="#ffffff" stroke="#999" strokeWidth={geo.swT} />
                         {!simpleMode && <>
                         {rightStrip > 0.5 && !hasRgtRm && <rect x={lastTagEndX} y={firstTagY} width={rightStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
                         {leftStrip > 0.5 && <rect x={px} y={firstTagY} width={leftStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
@@ -806,15 +871,22 @@ function LayoutPreview(props) {
           <div className="lp-legend">
             {props.isMultiTag && props.multiTagsList && props.multiTagsList.map(function(t, ti) {
               var col = getMultiTagColor(ti);
-              var curUps = props.selectedC ? (props.selectedC.upsPerTag || 1) : 1;
+              var curUps = 1;
+              if (props.selectedC && props.selectedC.itemizedTags) {
+                var it = props.selectedC.itemizedTags.find(function(item) { return item.id === t.id || item.name === t.name; });
+                if (it) curUps = it.slots;
+              } else if (props.selectedC && props.selectedC.tagsList && props.selectedC.tagsList[ti]) {
+                curUps = props.selectedC.tagsList[ti].baseSlots || props.selectedC.tagsList[ti].ratioUp || 1;
+              }
               return (
                 <div key={"mt-leg-" + ti} className="lp-leg-item">
                   <div className="lp-leg-swatch" style={{ background: col.fill, border: "1.5px solid " + col.cut }} />
-                  <span style={{ fontWeight: 700, color: col.cut }}>{t.name || ("Tag " + (ti + 1))} ({lpFmt(t.l)}"×{lpFmt(t.w)}", {curUps} UP)</span>
+                  <span style={{ fontWeight: 700, color: col.cut }}>{t.name || ("Tag " + (ti + 1))} ({lpFmt(t.l)}"×{lpFmt(t.w)}", {curUps} UP{t.crease ? ", Creased" : ""})</span>
                 </div>
               );
             })}
             <div className="lp-leg-item"><div className="lp-leg-swatch" style={{background:"none",border:"1px solid #000"}} /><span>Cut Line</span></div>
+            <div className="lp-leg-item"><div className="lp-leg-swatch" style={{background:"none",border:"1.5px solid #4a148c"}} /><span>Crease</span></div>
             <div className="lp-leg-item"><div className="lp-leg-swatch" style={{background:"none",border:"1px dashed #e74c3c"}} /><span>Bleed</span></div>
             <div className="lp-leg-item"><div className="lp-leg-swatch" style={{background:"none",border:"1px dotted #27ae60"}} /><span>Safe Area</span></div>
             <div className="lp-leg-item"><div className="lp-leg-swatch" style={{background:"none",border:"1px solid #000",borderRadius:"50%"}} /><span>Hole</span></div>
@@ -1147,11 +1219,12 @@ function TagCostingCalculator() {
 
   var jobMode_state = useState("single");
   var jobMode = jobMode_state[0], setJobMode = jobMode_state[1];
+  var removeSameTagBleed_state = useState(true);
+  var removeSameTagBleed = removeSameTagBleed_state[0], setRemoveSameTagBleed = removeSameTagBleed_state[1];
   var multiTags_state = useState([
-    { id: "t1", name: "Tag 1", l: 2, w: 4, qty: 5000 },
-    { id: "t2", name: "Tag 2", l: 2, w: 4, qty: 5000 },
-    { id: "t3", name: "Tag 3", l: 1.5, w: 3, qty: 5000 },
-    { id: "t4", name: "Tag 4", l: 2, w: 3, qty: 10000 }
+    { id: "t1", name: "Tag 1", l: 3.25, w: 3.75, qty: 866, crease: false },
+    { id: "t2", name: "Tag 2", l: 2.5, w: 3.75, qty: 10000, crease: false },
+    { id: "t3", name: "Tag 3", l: 2, w: 5, qty: 10000, crease: true }
   ]);
   var multiTags = multiTags_state[0], setMultiTags = multiTags_state[1];
 
@@ -1163,7 +1236,8 @@ function TagCostingCalculator() {
       name: "Tag " + nextIdx,
       l: 2,
       w: 3,
-      qty: 5000
+      qty: 5000,
+      crease: false
     }]));
   }
 
@@ -1294,6 +1368,7 @@ function TagCostingCalculator() {
           if (cfg.feedOffsetW != null) setFeedOffsetW(Number(cfg.feedOffsetW) || 0);
           if (cfg.feedHandL != null) setFeedHandL(Number(cfg.feedHandL) || 0);
           if (cfg.feedHandW != null) setFeedHandW(Number(cfg.feedHandW) || 0);
+          if (cfg.removeSameTagBleed != null) setRemoveSameTagBleed(!!cfg.removeSameTagBleed);
         } catch (e) {}
       }
       var usRes = results[1];
@@ -1333,12 +1408,12 @@ function TagCostingCalculator() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async function() {
       try {
-        var cfg = { ownerPin: ownerPin, transport: transport, cuttingOverlapMM: cuttingOverlapMM, insideMarginMM: insideMarginMM, feedOffsetL: feedOffsetL, feedOffsetW: feedOffsetW, feedHandL: feedHandL, feedHandW: feedHandW };
+        var cfg = { ownerPin: ownerPin, transport: transport, cuttingOverlapMM: cuttingOverlapMM, insideMarginMM: insideMarginMM, feedOffsetL: feedOffsetL, feedOffsetW: feedOffsetW, feedHandL: feedHandL, feedHandW: feedHandW, removeSameTagBleed: removeSameTagBleed };
         await window.storage.set(CONFIG_KEY, JSON.stringify(cfg), true, ownerPin);
       } catch (e) { setStorageAvailable(false); }
     }, 700);
     return function() { clearTimeout(saveTimer.current); };
-  }, [storageReady, ownerPin, transport, cuttingOverlapMM, insideMarginMM, feedOffsetL, feedOffsetW, feedHandL, feedHandW]);
+  }, [storageReady, ownerPin, transport, cuttingOverlapMM, insideMarginMM, feedOffsetL, feedOffsetW, feedHandL, feedHandW, removeSameTagBleed]);
 
   async function persistSheets(list) {
     setSheetCatalogue(list);
@@ -1462,7 +1537,7 @@ function TagCostingCalculator() {
     setCalc(null);
     setAltIdx(0);
   }, [
-    jobMode, multiTags,
+    jobMode, multiTags, removeSameTagBleed,
     sheetL, sheetW, sheetRate, selectedSheetId, tagL, tagW, cuttingOverlapMM, insideMarginMM,
     printMethod, colors, lamination, repeatDie, foil, foilL, foilW, emboss, embossL, embossW, orderQty, marginPct, marginMode, transport,
     feedOffsetL, feedOffsetW, feedHandL, feedHandW, overridePieces, manualPiecesPerSheet
@@ -1480,7 +1555,8 @@ function TagCostingCalculator() {
         var cands = generateMultiTagLayouts(
           Number(sheetL) || 0, Number(sheetW) || 0,
           multiTags,
-          oIn, mIn, fOff, fHand
+          oIn, mIn, fOff, fHand,
+          { removeSameTagBleed: removeSameTagBleed }
         );
         if (!cands || cands.length === 0) {
           return { candidates: [], calcResult: null };
@@ -1493,7 +1569,8 @@ function TagCostingCalculator() {
           manualPiecesPerSheet: manualPiecesPerSheet, effectiveMarginPct: effectiveMarginPct,
           effectiveMarginMode: effectiveMarginMode, overlapIn: oIn, marginIn: mIn,
           feedOffsetL: feedOffsetL, feedOffsetW: feedOffsetW, feedHandL: feedHandL, feedHandW: feedHandW, repeatDie: repeatDie,
-          foil: foil, foilL: foilL, foilW: foilW, emboss: emboss, embossL: embossL, embossW: embossW
+          foil: foil, foilL: foilL, foilW: foilW, emboss: emboss, embossL: embossL, embossW: embossW,
+          removeSameTagBleed: removeSameTagBleed
         });
         return { candidates: cands, calcResult: costObj };
       }
@@ -2222,6 +2299,23 @@ function TagCostingCalculator() {
                     );
                   })()}
 
+                  <div style={{ marginTop: -2, marginBottom: 12, padding: "10px 14px", background: removeSameTagBleed ? "rgba(46, 125, 50, 0.08)" : "rgba(0,0,0,0.03)", border: "1px solid " + (removeSameTagBleed ? "#a5d6a7" : "#e0e0e0"), borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: removeSameTagBleed ? "#2e7d32" : "#333" }}>
+                        Remove Bleed Margin Between Same Tags (Common Cut)
+                      </div>
+                      <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
+                        {removeSameTagBleed ? "Zero margin & shared knife cut between identical tags - eliminates gutters to fit more cavities on the die." : "Standard layout with full bleed gutters between all tags."}
+                      </div>
+                    </div>
+                    <Toggle
+                      checked={removeSameTagBleed}
+                      onChange={setRemoveSameTagBleed}
+                      onLabel="Active"
+                      offLabel="Off"
+                    />
+                  </div>
+
                   {multiTags.map(function(t, tIdx) {
                     var col = getMultiTagColor(tIdx);
                     var ratioList = (typeof calculateTagUpRatio === "function") ? calculateTagUpRatio(multiTags) : [];
@@ -2281,6 +2375,19 @@ function TagCostingCalculator() {
                               suffix="tags"
                             />
                           </Field>
+                        </div>
+                        <div style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", userSelect: "none" }}>
+                            <input
+                              type="checkbox"
+                              checked={!!t.crease}
+                              onChange={function(e) { updateMultiTagField(tIdx, "crease", e.target.checked); }}
+                              style={{ cursor: "pointer", accentColor: "#4a148c" }}
+                            />
+                            <span style={{ fontWeight: 600, color: t.crease ? "#4a148c" : "#555" }}>
+                              Center Crease / Fold line (Folded Hangtag)
+                            </span>
+                          </label>
                         </div>
                         <div className="tc-multi-tag-meta">
                           <span>Target: <strong>{num(t.qty || 5000, 0)} tags</strong> {itemCalc ? ("-> Produces " + num(itemCalc.qtyProduced, 0) + " tags (" + itemCalc.slots + " UP x " + num(calc.totalPieces, 0) + " pulls)") : ""}</span>
@@ -2744,6 +2851,7 @@ function TagCostingCalculator() {
                 <MemoLayoutPreview title="Layout Preview"
                   isMultiTag={jobMode === "multi"}
                   multiTagsList={multiTags}
+                  removeSameTagBleed={removeSameTagBleed}
                   selectedC={selectedC}
                   sheetLength={sheetL} sheetWidth={sheetW}
                   pieceLength={selectedC ? selectedC.pieceL : calc.pieceL}
