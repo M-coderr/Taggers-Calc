@@ -766,10 +766,15 @@ function LayoutPreview(props) {
                           {Array.from({ length: curSvgTC }).map(function(_, tr) {
                             return Array.from({ length: curSvgTR }).map(function(_, tc) {
                               var tx = firstTagX + tc * pitchX;
-                              var ty = firstTagY + tr * pitchY;
-                              var baseTagCount = isMixedCandidate ? (row === 0 ? 0 : props.selectedC.strips[0].tagsPerStrip * dN) : (pieceIdx * totalTagsPerPiece);
-                              var tagNum = baseTagCount + (isMixedCandidate ? (col * totalTagsPerPiece) : 0) + tr * curSvgTR + tc + 1;
-                              if (!isMixedCandidate) tagNum = pieceIdx * totalTagsPerPiece + tr * curSvgTR + tc + 1;
+                              var baseTagCount = 0;
+                              if (isMixedCandidate) {
+                                for (var si = 0; si < row; si++) {
+                                  baseTagCount += (props.selectedC.strips[si].tagsPerStrip || 0) * dN;
+                                }
+                              } else {
+                                baseTagCount = pieceIdx * totalTagsPerPiece;
+                              }
+                              var tagNum = isMixedCandidate ? (baseTagCount + col * totalTagsPerPiece + tr * curSvgTR + tc + 1) : (pieceIdx * totalTagsPerPiece + tr * curSvgTR + tc + 1);
                               
                               var tagId = "T" + String(tagNum);
                               var showId = tw > 14 && th > 10;

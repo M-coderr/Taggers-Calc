@@ -394,10 +394,94 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
         evalHybridDie(pL, pW, ni, mi);
       }
     }
+
+    evalMixedOffcutStrips(ori);
   }
 
-  
-    function evalHybridDie(pL, pW, ni, mi) {
+  function evalMixedOffcutStrips(ori) {
+    if (!isHandFeed) return;
+    var MIN_OFFCUT_SHORT = 3.0;
+    var MIN_OFFCUT_LONG = 6.0;
+
+    for (var n = 1; n <= 8; n++) {
+      var pW = sheetW / n;
+      if (pW < MIN_OFFCUT_SHORT) continue;
+
+      for (var mMain = 2; mMain <= 6; mMain++) {
+        var maxBaseRows = Math.floor((sheetL / mMain - 2 * marginIn + 2 * overlapIn) / ori.cutL);
+        if (maxBaseRows < 1) continue;
+
+        for (var rMain = maxBaseRows; rMain >= 1; rMain--) {
+          var minMainL = rMain * ori.cutL - 2 * overlapIn + 2 * marginIn;
+          if (minMainL * mMain >= sheetL) continue;
+
+          var stripAL = Math.round((minMainL + 0.05) * 100) / 100;
+          var stripBL = sheetL - mMain * stripAL;
+
+          if (stripBL < MIN_OFFCUT_SHORT - 0.01) continue;
+          if (!fitsFeed(stripAL, pW) || !meetsMinSize(stripAL, pW)) continue;
+
+          var offcutShort = Math.min(stripBL, pW);
+          var offcutLong = Math.max(stripBL, pW);
+          if (!fitsFeed(stripBL, pW) || offcutShort < MIN_OFFCUT_SHORT || offcutLong < MIN_OFFCUT_LONG) continue;
+
+          var colsMain = Math.floor((pW - 2 * marginIn + 2 * overlapIn) / ori.cutW);
+          if (colsMain < 1) continue;
+          var mainTags = rMain * colsMain;
+
+          // Offcut piece tags using same die (partial punch)
+          var rOff = Math.floor((stripBL - 2 * marginIn + 2 * overlapIn) / ori.cutL);
+          if (rOff < 1) continue;
+          var offTags = rOff * colsMain;
+
+          var totalTags = (mMain * mainTags + offTags) * n;
+          var totalPieces = (mMain + 1) * n;
+          var util = (totalTags * ori.cutL * ori.cutW) / (sheetL * sheetW) * 100;
+
+          if (totalTags <= mMain * mainTags * n) continue;
+
+          var strips = [];
+          for (var si = 0; si < mMain; si++) {
+            strips.push({ L: stripAL, W: pW, rows: rMain, cols: colsMain, count: n, tagsPerStrip: mainTags });
+          }
+          strips.push({ L: stripBL, W: pW, rows: rOff, cols: colsMain, count: n, tagsPerStrip: offTags, isOffcut: true });
+
+          candidates.push({
+            TL: tagL, TW: tagW, n: n, m: mMain + 1,
+            pieceL: stripAL, pieceW: pW,
+            isMixed: true,
+            strips: strips,
+            tagsRows: rMain, tagsCols: colsMain,
+            tagsPerPieceNominal: mainTags,
+            totalTagsPerSheet: totalTags,
+            reclaimedTags: offTags * n,
+            totalPieces: totalPieces,
+            sheetsNeeded: orderQty > 0 ? Math.ceil(orderQty / totalTags) : 0,
+            wastePct: Math.max(0, 100 - util),
+            utilization: Math.min(100, util),
+            feedMode: feedLabel,
+            tagDesc: ori.label + ' mixed (' + (mMain * n) + 'x ' + stripAL.toFixed(1) + 'x' + pW.toFixed(1) + '" + ' + n + 'x ' + stripBL.toFixed(1) + 'x' + pW.toFixed(1) + '" offcut)',
+            pieceDesc: 'Mixed (' + stripAL.toFixed(1) + 'x' + pW.toFixed(1) + '" & ' + stripBL.toFixed(1) + 'x' + pW.toFixed(1) + '")',
+            balanceScore: 92,
+            optimization: {
+              baseTags: mainTags,
+              rotAdditions: 0, rotColCount: 0, rotRowCount: 0,
+              finalTags: mainTags,
+              mainRows: rMain, mainCols: colsMain,
+              renderRows: rMain, renderCols: colsMain,
+              balanceScore: 92,
+              hasExtra: true,
+              isTagRotated: ori.label === 'rotated',
+              reclaimedTags: offTags * n,
+              reclaimStrategy: 'mixed-strips'
+            }
+          });
+        }
+      }
+    }
+  }
+
+  function evalHybridDie(pL, pW, ni, mi) {
     var uDims = getUsablePiece(pL, pW);
     var usableL = uDims.usableL;
     var usableW = uDims.usableW;
@@ -617,12 +701,12 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
     }
   }
   deduped.sort(function(a, b) {
+    if (a.totalTagsPerSheet !== b.totalTagsPerSheet) return b.totalTagsPerSheet - a.totalTagsPerSheet;
     if (a.production && b.production) {
       if (Math.abs(a.production.productionScore - b.production.productionScore) > 3) {
         return b.production.productionScore - a.production.productionScore;
       }
     }
-    if (a.totalTagsPerSheet !== b.totalTagsPerSheet) return b.totalTagsPerSheet - a.totalTagsPerSheet;
     // Prefer single-orientation uniform layout if tag count is the same
     var aIsComplex = !!(a.isHybrid || (a.optimization && (a.optimization.rotAdditions > 0 || a.optimization.cornerCount > 0)));
     var bIsComplex = !!(b.isHybrid || (b.optimization && (b.optimization.rotAdditions > 0 || b.optimization.cornerCount > 0)));
