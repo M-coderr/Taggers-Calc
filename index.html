@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
 <title>TagX Costing Calculator</title>
-<link rel="stylesheet" href="styles.css?v=2.4" />
+<link rel="stylesheet" href="styles.css?v=2.5" />
 </head>
 <body>
 <div id="root"></div>
@@ -371,10 +371,6 @@ function LayoutPreview(props) {
                 : ("Sheet: " + lpFmt(sL) + " × " + lpFmt(sW) + " | Tag: " + lpFmt(tL) + " × " + lpFmt(tW) + " | Overlap: " + lpFmt(overlap) + " | " + (!isHandFeed ? ("Offset Margin: 0.6\"/0.5\" (Printable: " + lpFmt(pm.usableL) + " × " + lpFmt(pm.usableW) + "\")") : ("Margin: " + lpFmt(margin) + "\"")) + " | " + dateStr))
           }
         </span>
-        <div style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
-          <button type="button" className={"lo-alt-btn" + (viewMode === "sheet" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("sheet"); }}>Sheet View</button>
-          <button type="button" className={"lo-alt-btn" + (viewMode === "die" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("die"); }}>Single Die View</button>
-        </div>
       </div>
         <div className="lp-preview-empty">
           <svg viewBox="0 0 400 250" className="lp-svg"><text x="200" y="130" textAnchor="middle" fontSize="16" fontWeight="600" fill="#aaa" fontFamily="'Courier New',monospace">No valid layout generated</text></svg>
@@ -409,14 +405,6 @@ function LayoutPreview(props) {
                 : ("Sheet: " + lpFmt(sL) + " × " + lpFmt(sW) + " | Tag: " + lpFmt(tL) + " × " + lpFmt(tW) + " | Overlap: " + lpFmt(overlap) + " | " + (!isHandFeed ? ("Offset Margin: 0.6\"/0.5\" (Printable: " + lpFmt(pm.usableL) + " × " + lpFmt(pm.usableW) + "\")") : ("Margin: " + lpFmt(margin) + "\"")) + " | " + dateStr))
           }
         </span>
-        <div style={{ marginLeft: "auto", display: "flex", gap: "6px", alignItems: "center" }}>
-          <button type="button" className={"lo-alt-btn" + (viewMode === "sheet" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("sheet"); }}>Sheet View</button>
-          <button type="button" className={"lo-alt-btn" + (viewMode === "die" ? " lo-alt-active" : "")} style={{ padding: "3px 10px", fontSize: "11px", height: "auto" }} onClick={function() { setViewMode("die"); }}>Single Die View</button>
-          <button type="button" className="lo-alt-btn" style={{ padding: "3px 10px", fontSize: "11px", height: "auto", background: "#b44a2a", color: "#fff", borderColor: "#963d20", display: "inline-flex", alignItems: "center", gap: "4px" }} onClick={function() { window.print(); }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export PDF
-          </button>
-        </div>
       </div>
       <div className="lp-main">
         <div className="lp-drawing-col">
@@ -711,8 +699,6 @@ function LayoutPreview(props) {
                     var recClaimW_corner = 0; // corner-fit extends both axes, not just one
                     var contentW = gridW + Math.max(recClaimW, cTW_svg);
                     var contentH = gridH + Math.max(recClaimH, cTH_svg);
-                    try { console.log("[CENTER] piece " + (row*dN+col+1) + " usable=" + usableW.toFixed(1) + "x" + usableH.toFixed(1) + " grid=" + gridW.toFixed(1) + "x" + gridH.toFixed(1) + " content=" + contentW.toFixed(1) + "x" + contentH.toFixed(1) + " recClaimH=" + recClaimH.toFixed(1) + " recClaimW=" + recClaimW.toFixed(1) + " recClaimW_corner=" + recClaimW_corner.toFixed(1) + " btmReclaimH=" + btmReclaimH + " rgtReclaimN=" + rgtReclaimN); } catch(e) {}
-                    try { console.log("===> v2-reclaim-center-active <==="); } catch(e) {}
 
                     var firstTagX = px + marginSvgX + Math.max(0, (usableW - gridW) / 2);
                     var firstTagY = py + marginSvgY + Math.max(0, (usableH - gridH) / 2);
@@ -732,24 +718,6 @@ function LayoutPreview(props) {
                     var topStrip = Math.max(0, firstTagY - py);
                     var bottomStrip = Math.max(0, py + extPh - (firstTagY + contentH));
 
-                    try {
-                      console.log("[CENTER-OFFSET] piece " + (row*dN+col+1) +
-                        " offsetX=" + (firstTagX-px-marginSvgX).toFixed(2) +
-                        " offsetY=" + (firstTagY-py-marginSvgY).toFixed(2) +
-                        " usableW=" + usableW.toFixed(2) +
-                        " contentW=" + contentW.toFixed(2) +
-                        " usableH=" + usableH.toFixed(2) +
-                        " contentH=" + contentH.toFixed(2) +
-                        " (usableW-gridW)=" + (usableW-gridW).toFixed(2) +
-                        " (usableH-gridH)=" + (usableH-gridH).toFixed(2) +
-                        " topStrip=" + topStrip.toFixed(2) +
-                        " bottomStrip=" + bottomStrip.toFixed(2) +
-                        " leftStrip=" + leftStrip.toFixed(2) +
-                        " rightStrip=" + rightStrip.toFixed(2) +
-                        " extPw=" + extPw.toFixed(1) +
-                        " extPh=" + extPh.toFixed(1));
-                    } catch(e) {}
-
                     currX += extPw;
                     if (extPh > maxRowHeight) {
                       maxRowHeight = extPh;
@@ -759,7 +727,6 @@ function LayoutPreview(props) {
 
                     var totalTagsPerPiece = curSvgTR * curSvgTC + btmReclaimH + rgtReclaimN + (hasCornerRm ? 1 : 0);
                     var pieceIdx = row * dN + col;
-                    try { console.log("[RECLAIM-DIAG] piece " + (pieceIdx+1) + " (row=" + row + " col=" + col + ") btmReclaimH=" + btmReclaimH + " rgtReclaimN=" + rgtReclaimN + " contentW=" + contentW.toFixed(1) + " contentH=" + contentH.toFixed(1) + " firstTagX=" + firstTagX.toFixed(1) + " firstTagY=" + firstTagY.toFixed(1) + " rcx(rgt)=" + (lastTagEndX).toFixed(1) + " rcy(rgt)=" + firstTagY.toFixed(1) + " rcx(btm)=" + firstTagX.toFixed(1) + " rcy(btm)=" + (lastTagEndY).toFixed(1) + " tw=" + tw.toFixed(1) + " th=" + th.toFixed(1)); } catch(e) {}
 
                     pieceGroups.push(
                       <g key={"p" + row + "-" + col}>
@@ -815,7 +782,6 @@ function LayoutPreview(props) {
                           var tagId = "T" + String(tagNum);
                           var showId = tw > 14 && th > 10;
                           var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
-                          try { console.log("[RECLAIM-DIAG] piece " + (pieceIdx+1) + " BTM-reclaim RENDERS tag=" + tagId + " at (" + rcx.toFixed(1) + "," + rcy.toFixed(1) + ") w=" + tw.toFixed(1) + " h=" + th.toFixed(1)); } catch(e) {}
                           reclaimOverlay.push(
                             <g key={"rb-" + row + "-" + col + "-" + i}>
                               {renderTagShape({
@@ -835,7 +801,6 @@ function LayoutPreview(props) {
                           var tagId = "T" + String(tagNum);
                           var showId = th > 14 && tw > 10;
                           var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
-                          try { console.log("[RECLAIM-DIAG] piece " + (pieceIdx+1) + " RGT-reclaim RENDERS tag=" + tagId + " at (" + rcx.toFixed(1) + "," + rcy.toFixed(1) + ") w=" + th.toFixed(1) + " h=" + tw.toFixed(1)); } catch(e) {}
                           reclaimOverlay.push(
                             <g key={"rr-" + row + "-" + col + "-" + i}>
                               {renderTagShape({
@@ -855,7 +820,6 @@ function LayoutPreview(props) {
                         var tagId = "T" + String(tagNum);
                         var showId = cTW_svg > 14 && cTH_svg > 10;
                         var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
-                        try { console.log("[RECLAIM-DIAG] piece " + (pieceIdx+1) + " CORNER-reclaim RENDERS tag=" + tagId + " at (" + rcx.toFixed(1) + "," + rcy.toFixed(1) + ") w=" + cTW_svg.toFixed(1) + " h=" + cTH_svg.toFixed(1)); } catch(e) {}
                         reclaimOverlay.push(
                           <g key={"rc-" + row + "-" + col}>
                             {renderTagShape({
@@ -870,17 +834,6 @@ function LayoutPreview(props) {
                   });
                   currY += maxRowHeight;
                 });
-
-                try {
-                  var sheetRightEdge = oX + shW;
-                  var sheetBottomEdge = oY + shH;
-                  var anyReclaim = rotRowCount > 0 || rotColCount > 0 || cornerCount > 0;
-                  var candDesc = dN + "x" + dM + " (" + lpFmt(dPL) + "x" + lpFmt(dPW) + "), reclaim=" + (anyReclaim ? (reclaimStrategy || "active") : "none");
-                  console.log("[SHEET-BOUNDARY] layout=" + candDesc + " maxX=" + maxX.toFixed(1) + " sheetRightEdge=" + sheetRightEdge.toFixed(1) +
-                    " fitsX=" + (maxX <= sheetRightEdge + 0.1) +
-                    " maxY=" + maxY.toFixed(1) + " sheetBottomEdge=" + sheetBottomEdge.toFixed(1) +
-                    " fitsY=" + (maxY <= sheetBottomEdge + 0.1));
-                } catch(e) {}
 
                 return [pieceGroups, <g key={"reclaim-overlay"}>{reclaimOverlay}</g>];
               })()}
@@ -2089,32 +2042,47 @@ function TagCostingCalculator() {
   var showRightPalette_state = useState(true);
   var showRightPalette = showRightPalette_state[0], setShowRightPalette = showRightPalette_state[1];
 
-  var previewCandidate = useMemo(function() {
-    if (selectedC) return selectedC;
-    if (!isOwner && !selectedSheet) return null;
+  var previewCandidate_state = useState(function() {
     try {
-      var oIn = mm2in(Number(cuttingOverlapMM) || 0);
-      var mIn = mm2in(Number(insideMarginMM) || 0);
-      var fOff = printMethod === 'offset' ? [Number(feedOffsetL) || 0, Number(feedOffsetW) || 0] : [0, 0];
-      var fHand = printMethod === 'hand' ? [Number(feedHandL) || 0, Number(feedHandW) || 0] : [0, 0];
-      if (jobMode === "multi") {
-        var cands = generateMultiTagLayouts(
-          Number(sheetL) || 0, Number(sheetW) || 0,
-          multiTags,
-          oIn, mIn, fOff, fHand,
-          { removeSameTagBleed: removeSameTagBleed }
-        );
-        return (cands && cands.length > 0) ? cands[0] : null;
-      }
-      var cands = generateAllLayouts(
-        Number(sheetL) || 0, Number(sheetW) || 0,
-        Number(tagL) || 0, Number(tagW) || 0,
-        oIn, mIn, Number(orderQty) || 5000, fOff, fHand
-      );
+      var oIn = mm2in(Number(DEFAULT_CONFIG.cuttingOverlapMM) || 0);
+      var mIn = mm2in(Number(DEFAULT_CONFIG.insideMarginMM) || 0);
+      var fHand = [Number(DEFAULT_CONFIG.feedHandL) || 0, Number(DEFAULT_CONFIG.feedHandW) || 0];
+      var cands = generateAllLayouts(PAPER_DEFAULTS.sheetL, PAPER_DEFAULTS.sheetW, 2, 4, oIn, mIn, 5000, [0, 0], fHand);
       return (cands && cands.length > 0) ? cands[0] : null;
     } catch(e) {
       return null;
     }
+  });
+  var previewCandidate = previewCandidate_state[0], setPreviewCandidate = previewCandidate_state[1];
+
+  useEffect(function() {
+    if (selectedC) return;
+    if (!isOwner && !selectedSheet) return;
+    var timer = setTimeout(function() {
+      try {
+        var oIn = mm2in(Number(cuttingOverlapMM) || 0);
+        var mIn = mm2in(Number(insideMarginMM) || 0);
+        var fOff = printMethod === 'offset' ? [Number(feedOffsetL) || 0, Number(feedOffsetW) || 0] : [0, 0];
+        var fHand = printMethod === 'hand' ? [Number(feedHandL) || 0, Number(feedHandW) || 0] : [0, 0];
+        if (jobMode === "multi") {
+          var cands = generateMultiTagLayouts(
+            Number(sheetL) || 0, Number(sheetW) || 0,
+            multiTags,
+            oIn, mIn, fOff, fHand,
+            { removeSameTagBleed: removeSameTagBleed }
+          );
+          if (cands && cands.length > 0) setPreviewCandidate(cands[0]);
+        } else {
+          var cands = generateAllLayouts(
+            Number(sheetL) || 0, Number(sheetW) || 0,
+            Number(tagL) || 0, Number(tagW) || 0,
+            oIn, mIn, Number(orderQty) || 5000, fOff, fHand
+          );
+          if (cands && cands.length > 0) setPreviewCandidate(cands[0]);
+        }
+      } catch(e) {}
+    }, 160);
+    return function() { clearTimeout(timer); };
   }, [selectedC, isOwner, selectedSheet, sheetL, sheetW, jobMode, multiTags, tagL, tagW, cuttingOverlapMM, insideMarginMM, printMethod, feedOffsetL, feedOffsetW, feedHandL, feedHandW, removeSameTagBleed, orderQty]);
 
   var displayCandidate = selectedC || previewCandidate;
@@ -2290,46 +2258,35 @@ function TagCostingCalculator() {
                 <div className="cad-studio-badge">
                   <span className="cad-badge-dot" /> CAD DIE STUDIO
                 </div>
-                <button
-                  type="button"
-                  className={"cad-tool-btn" + (jobMode === "single" ? " active" : "")}
-                  onClick={function() { setJobMode("single"); }}
-                >
-                  Single Tag Die
-                </button>
-                <button
-                  type="button"
-                  className={"cad-tool-btn" + (jobMode === "multi" ? " active" : "")}
-                  onClick={function() { setJobMode("multi"); }}
-                >
-                  Multi-Tag Combo ({multiTags.length})
-                </button>
+                <div className="cad-mode-pill">
+                  {jobMode === "single" ? "Single Tag Die" : ("Multi-Tag Combo (" + multiTags.length + ")")}
+                </div>
               </div>
 
               <div className="cad-tool-group">
-                {jobMode === "multi" && (
-                  <button
-                    type="button"
-                    className={"cad-tool-btn cad-common-cut-btn" + (removeSameTagBleed ? " active" : "")}
-                    onClick={function() { setRemoveSameTagBleed(function(b) { return !b; }); }}
-                    title="Toggle Common Knife Cut between identical tags (No Bleed)"
-                  >
-                    <span>✂</span> Common Cut: {removeSameTagBleed ? "ACTIVE" : "OFF"}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={"cad-tool-btn" + (studioViewMode === "sheet" ? " active" : "")}
+                  onClick={function() { setStudioViewMode("sheet"); }}
+                  title="View full sheet nesting with all pieces"
+                >
+                  Full Sheet View
+                </button>
                 <button
                   type="button"
                   className={"cad-tool-btn" + (studioViewMode === "die" ? " active" : "")}
                   onClick={function() { setStudioViewMode("die"); }}
+                  title="View single die board"
                 >
                   Single Die View
                 </button>
                 <button
                   type="button"
-                  className={"cad-tool-btn" + (studioViewMode === "sheet" ? " active" : "")}
-                  onClick={function() { setStudioViewMode("sheet"); }}
+                  className="cad-tool-btn cad-pdf-btn"
+                  onClick={function() { window.print(); }}
+                  title="Export / Print Die Layout PDF"
                 >
-                  Full Sheet View
+                  <Printer size={13} /> Export PDF
                 </button>
               </div>
 

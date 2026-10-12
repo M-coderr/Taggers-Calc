@@ -202,11 +202,10 @@ html, body {
   gap: 12px;
   flex-wrap: wrap;
   padding: 8px 16px;
-  background: rgba(28, 33, 44, 0.92);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1c212c;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 .cad-tool-group {
@@ -239,6 +238,19 @@ html, body {
   box-shadow: 0 0 8px #38bdf8;
 }
 
+.cad-mode-pill {
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+}
+
 .cad-tool-btn {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -268,11 +280,16 @@ html, body {
   box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
 }
 
-.cad-common-cut-btn.active {
-  background: rgba(16, 185, 129, 0.25);
-  border-color: #10b981;
-  color: #10b981;
-  font-weight: 700;
+.cad-tool-btn.cad-pdf-btn {
+  background: rgba(180, 74, 42, 0.2);
+  border-color: rgba(180, 74, 42, 0.4);
+  color: #fca5a5;
+}
+
+.cad-tool-btn.cad-pdf-btn:hover {
+  background: #b44a2a;
+  border-color: #b44a2a;
+  color: #fff;
 }
 
 .cad-palette-toggle-btn {
@@ -310,16 +327,15 @@ html, body {
 .cad-floating-palette {
   width: 375px;
   flex-shrink: 0;
-  background: rgba(26, 30, 42, 0.94);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #181c26;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
   max-height: 85vh;
   overflow: hidden;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .cad-palette-hidden {
@@ -333,7 +349,7 @@ html, body {
 
 .cad-palette-title-bar {
   padding: 12px 16px;
-  background: rgba(18, 21, 28, 0.85);
+  background: rgba(18, 21, 28, 0.95);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
@@ -376,11 +392,10 @@ html, body {
   max-width: 1720px;
   margin: 0 auto;
   width: 100%;
-  background: rgba(26, 30, 42, 0.94);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #181c26;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   padding: 24px;
 }
 
