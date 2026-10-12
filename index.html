@@ -625,9 +625,17 @@ function LayoutPreview(props) {
                         }
                       });
 
+                      var pieceDimText = lpFmt(dPL) + '" × ' + lpFmt(dPW) + '"';
                       pieceGroups.push(
                         <g key={"p-" + row + "-" + col}>
                           <rect x={px} y={py} width={pw} height={ph} fill="#ffffff" stroke="#888" strokeWidth={geo.swT} />
+                          {/* Piece Dimension Badge */}
+                          <g>
+                            <rect x={px + 4} y={py + 4} width={Math.min(pw - 8, Math.max(50, pieceDimText.length * 6 + 12))} height={14} rx={3} fill="#1e2430" fillOpacity="0.82" />
+                            <text x={px + 8} y={py + 14} fontSize={Math.max(6, Math.min(9, sc * 0.45))} fontWeight="700" fill="#38bdf8" fontFamily="'Courier New',monospace">
+                              {pieceDimText}
+                            </text>
+                          </g>
                           {blockEls}
                         </g>
                       );
@@ -728,9 +736,17 @@ function LayoutPreview(props) {
                     var totalTagsPerPiece = curSvgTR * curSvgTC + btmReclaimH + rgtReclaimN + (hasCornerRm ? 1 : 0);
                     var pieceIdx = row * dN + col;
 
+                    var pieceDimText = lpFmt(curPieceL) + '" × ' + lpFmt(curPieceW) + '"';
                     pieceGroups.push(
                       <g key={"p" + row + "-" + col}>
                         <rect x={px} y={py} width={extPw} height={extPh} fill="#ffffff" stroke="#999" strokeWidth={geo.swT} />
+                        {/* Piece Dimension Badge */}
+                        <g>
+                          <rect x={px + 4} y={py + 4} width={Math.min(extPw - 8, Math.max(50, pieceDimText.length * 6 + 12))} height={14} rx={3} fill="#1e2430" fillOpacity="0.82" />
+                          <text x={px + 8} y={py + 14} fontSize={Math.max(6, Math.min(9, sc * 0.45))} fontWeight="700" fill="#38bdf8" fontFamily="'Courier New',monospace">
+                            {pieceDimText}
+                          </text>
+                        </g>
                         {!simpleMode && <>
                         {rightStrip > 0.5 && !hasRgtRm && <rect x={lastTagEndX} y={firstTagY} width={rightStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
                         {leftStrip > 0.5 && <rect x={px} y={firstTagY} width={leftStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
@@ -1651,10 +1667,11 @@ function TagCostingCalculator() {
 
   function handleSelectAltCandidate(idx) {
     setAltIdx(idx);
-    if (hasCalculated) {
-      var res = runCalculation(idx);
+    var res = runCalculation(idx);
+    if (res && res.candidates && res.candidates.length > 0) {
       setLayoutCandidates(res.candidates);
       setCalc(res.calcResult);
+      setHasCalculated(true);
     }
   }
 
