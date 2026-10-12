@@ -403,82 +403,116 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
     var MIN_OFFCUT_SHORT = 3.0;
     var MIN_OFFCUT_LONG = 6.0;
 
-    for (var n = 1; n <= 8; n++) {
-      var pW = sheetW / n;
-      if (pW < MIN_OFFCUT_SHORT) continue;
+    var axes = [
+      { dimL: sheetL, dimW: sheetW, cutL: ori.cutL, cutW: ori.cutW, swap: false },
+      { dimL: sheetW, dimW: sheetL, cutL: ori.cutW, cutW: ori.cutL, swap: true }
+    ];
 
-      for (var mMain = 2; mMain <= 6; mMain++) {
-        var maxBaseRows = Math.floor((sheetL / mMain - 2 * marginIn + 2 * overlapIn) / ori.cutL);
-        if (maxBaseRows < 1) continue;
+    axes.forEach(function(axis) {
+      var sL = axis.dimL;
+      var sW = axis.dimW;
+      var cL = axis.cutL;
+      var cW = axis.cutW;
 
-        for (var rMain = maxBaseRows; rMain >= 1; rMain--) {
-          var minMainL = rMain * ori.cutL - 2 * overlapIn + 2 * marginIn;
-          if (minMainL * mMain >= sheetL) continue;
+      for (var n = 1; n <= 8; n++) {
+        var pW = sW / n;
+        if (pW < MIN_OFFCUT_SHORT) continue;
 
-          var stripAL = Math.round((minMainL + 0.05) * 100) / 100;
-          var stripBL = sheetL - mMain * stripAL;
+        for (var mMain = 2; mMain <= 6; mMain++) {
+          var maxBaseRows = Math.floor((sL / mMain - 2 * marginIn + 2 * overlapIn) / cL);
+          if (maxBaseRows < 1) continue;
 
-          if (stripBL < MIN_OFFCUT_SHORT - 0.01) continue;
-          if (!fitsFeed(stripAL, pW) || !meetsMinSize(stripAL, pW)) continue;
+          for (var rMain = maxBaseRows; rMain >= 1; rMain--) {
+            var minMainL = rMain * cL - 2 * overlapIn + 2 * marginIn;
+            if (minMainL * mMain >= sL) continue;
 
-          var offcutShort = Math.min(stripBL, pW);
-          var offcutLong = Math.max(stripBL, pW);
-          if (!fitsFeed(stripBL, pW) || offcutShort < MIN_OFFCUT_SHORT || offcutLong < MIN_OFFCUT_LONG) continue;
+            var stripAL = Math.round((minMainL + 0.05) * 100) / 100;
+            var stripBL = Math.round((sL - mMain * stripAL) * 100) / 100;
 
-          var colsMain = Math.floor((pW - 2 * marginIn + 2 * overlapIn) / ori.cutW);
-          if (colsMain < 1) continue;
-          var mainTags = rMain * colsMain;
+            if (stripBL < MIN_OFFCUT_SHORT - 0.01) continue;
+            if (!fitsFeed(stripAL, pW) || !meetsMinSize(stripAL, pW)) continue;
 
-          // Offcut piece tags using same die (partial punch)
-          var rOff = Math.floor((stripBL - 2 * marginIn + 2 * overlapIn) / ori.cutL);
-          if (rOff < 1) continue;
-          var offTags = rOff * colsMain;
+            var offcutShort = Math.min(stripBL, pW);
+            var offcutLong = Math.max(stripBL, pW);
+            if (!fitsFeed(stripBL, pW) || offcutShort < MIN_OFFCUT_SHORT || offcutLong < MIN_OFFCUT_LONG) continue;
 
-          var totalTags = (mMain * mainTags + offTags) * n;
-          var totalPieces = (mMain + 1) * n;
-          var util = (totalTags * ori.cutL * ori.cutW) / (sheetL * sheetW) * 100;
+            var colsMain = Math.floor((pW - 2 * marginIn + 2 * overlapIn) / cW);
+            if (colsMain < 1) continue;
+            var mainTags = rMain * colsMain;
 
-          if (totalTags <= mMain * mainTags * n) continue;
+            var rOff = Math.floor((stripBL - 2 * marginIn + 2 * overlapIn) / cL);
+            if (rOff < 1) continue;
+            var offTags = rOff * colsMain;
 
-          var strips = [];
-          for (var si = 0; si < mMain; si++) {
-            strips.push({ L: stripAL, W: pW, rows: rMain, cols: colsMain, count: n, tagsPerStrip: mainTags });
-          }
-          strips.push({ L: stripBL, W: pW, rows: rOff, cols: colsMain, count: n, tagsPerStrip: offTags, isOffcut: true });
+            var totalTags = (mMain * mainTags + offTags) * n;
+            var totalPieces = (mMain + 1) * n;
+            var util = (totalTags * ori.cutL * ori.cutW) / (sheetL * sheetW) * 100;
 
-          candidates.push({
-            TL: tagL, TW: tagW, n: n, m: mMain + 1,
-            pieceL: stripAL, pieceW: pW,
-            isMixed: true,
-            strips: strips,
-            tagsRows: rMain, tagsCols: colsMain,
-            tagsPerPieceNominal: mainTags,
-            totalTagsPerSheet: totalTags,
-            reclaimedTags: offTags * n,
-            totalPieces: totalPieces,
-            sheetsNeeded: orderQty > 0 ? Math.ceil(orderQty / totalTags) : 0,
-            wastePct: Math.max(0, 100 - util),
-            utilization: Math.min(100, util),
-            feedMode: feedLabel,
-            tagDesc: ori.label + ' mixed (' + (mMain * n) + 'x ' + stripAL.toFixed(1) + 'x' + pW.toFixed(1) + '" + ' + n + 'x ' + stripBL.toFixed(1) + 'x' + pW.toFixed(1) + '" offcut)',
-            pieceDesc: 'Mixed (' + stripAL.toFixed(1) + 'x' + pW.toFixed(1) + '" & ' + stripBL.toFixed(1) + 'x' + pW.toFixed(1) + '")',
-            balanceScore: 92,
-            optimization: {
-              baseTags: mainTags,
-              rotAdditions: 0, rotColCount: 0, rotRowCount: 0,
-              finalTags: mainTags,
-              mainRows: rMain, mainCols: colsMain,
-              renderRows: rMain, renderCols: colsMain,
-              balanceScore: 92,
-              hasExtra: true,
-              isTagRotated: ori.label === 'rotated',
-              reclaimedTags: offTags * n,
-              reclaimStrategy: 'mixed-strips'
+            if (totalTags <= mMain * mainTags * n) continue;
+
+            var strips = [];
+            for (var si = 0; si < mMain; si++) {
+              strips.push({
+                L: axis.swap ? pW : stripAL,
+                W: axis.swap ? stripAL : pW,
+                rows: axis.swap ? colsMain : rMain,
+                cols: axis.swap ? rMain : colsMain,
+                count: n,
+                tagsPerStrip: mainTags
+              });
             }
-          });
+            strips.push({
+              L: axis.swap ? pW : stripBL,
+              W: axis.swap ? stripBL : pW,
+              rows: axis.swap ? colsMain : rOff,
+              cols: axis.swap ? rOff : colsMain,
+              count: n,
+              tagsPerStrip: offTags,
+              isOffcut: true
+            });
+
+            var primaryPieceL = axis.swap ? pW : stripAL;
+            var primaryPieceW = axis.swap ? stripAL : pW;
+
+            candidates.push({
+              TL: tagL, TW: tagW,
+              n: axis.swap ? (mMain + 1) : n,
+              m: axis.swap ? n : (mMain + 1),
+              pieceL: primaryPieceL, pieceW: primaryPieceW,
+              isMixed: true,
+              strips: strips,
+              tagsRows: axis.swap ? colsMain : rMain,
+              tagsCols: axis.swap ? rMain : colsMain,
+              tagsPerPieceNominal: Math.round(totalTags / totalPieces),
+              totalTagsPerSheet: totalTags,
+              reclaimedTags: offTags * n,
+              totalPieces: totalPieces,
+              sheetsNeeded: orderQty > 0 ? Math.ceil(orderQty / totalTags) : 0,
+              wastePct: Math.max(0, 100 - util),
+              utilization: Math.min(100, util),
+              feedMode: feedLabel,
+              tagDesc: ori.label + ' mixed (' + (mMain * n) + 'x ' + stripAL.toFixed(1) + 'x' + pW.toFixed(1) + '" + ' + n + 'x ' + stripBL.toFixed(1) + 'x' + pW.toFixed(1) + '" offcut)',
+              pieceDesc: 'Mixed (' + stripAL.toFixed(1) + 'x' + pW.toFixed(1) + '" & ' + stripBL.toFixed(1) + 'x' + pW.toFixed(1) + '")',
+              balanceScore: 92,
+              optimization: {
+                baseTags: mainTags,
+                rotAdditions: 0, rotColCount: 0, rotRowCount: 0,
+                finalTags: mainTags,
+                mainRows: axis.swap ? colsMain : rMain,
+                mainCols: axis.swap ? rMain : colsMain,
+                renderRows: axis.swap ? colsMain : rMain,
+                renderCols: axis.swap ? rMain : colsMain,
+                balanceScore: 92,
+                hasExtra: true,
+                isTagRotated: ori.label === 'rotated',
+                reclaimedTags: offTags * n,
+                reclaimStrategy: 'mixed-strips'
+              }
+            });
+          }
         }
       }
-    }
+    });
   }
 
   function evalHybridDie(pL, pW, ni, mi) {

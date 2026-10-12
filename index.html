@@ -261,7 +261,9 @@ function LayoutPreview(props) {
   }
 
   var valid = sL > 0 && sW > 0 && pL > 0 && pW > 0;
-  var totalTags = valid ? n * m * optTagsPerPiece : 0;
+  var totalTags = valid
+    ? (props.selectedC && props.selectedC.totalTagsPerSheet ? props.selectedC.totalTagsPerSheet : n * m * optTagsPerPiece)
+    : 0;
   var simpleMode = totalTags > 200;
   var wastePct = React.useMemo(function() {
     if (!valid) return 0;
@@ -649,8 +651,15 @@ function LayoutPreview(props) {
                 // Each piece occupies exactly pw × ph (nominal, no extension for centering calc).
                 // If reclaim extends a piece, we use the nominal span for the centering offset
                 // so the centered layout looks balanced even when one edge has a reclaim pocket.
-                var nominalLayoutSpanX = dN * pw;
-                var nominalLayoutSpanY = dM * ph;
+                var isMixedCandidate = !!(props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0);
+                var dM_render = isMixedCandidate ? props.selectedC.strips.length : dM;
+
+                var nominalLayoutSpanX = isMixedCandidate
+                  ? (dN * (rotated ? props.selectedC.strips[0].W : props.selectedC.strips[0].L) * sc)
+                  : (dN * pw);
+                var nominalLayoutSpanY = isMixedCandidate
+                  ? (props.selectedC.strips.reduce(function(sum, s) { return sum + (rotated ? s.L : s.W); }, 0) * sc)
+                  : (dM * ph);
                 var unusedX = Math.max(0, shW - nominalLayoutSpanX);
                 var unusedY = Math.max(0, shH - nominalLayoutSpanY);
                 var startOriginX = oX + unusedX / 2;
@@ -660,36 +669,44 @@ function LayoutPreview(props) {
                 var maxX = startOriginX;
                 var maxY = startOriginY;
 
-                var isMixedCandidate = !!(props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0);
-                var dM_render = isMixedCandidate ? props.selectedC.strips.length : dM;
-
                 Array.from({ length: dM_render }).forEach(function(_, row) {
                   var currX = startOriginX;
                   var strip = isMixedCandidate ? props.selectedC.strips[row] : null;
-                  var rowPh = isMixedCandidate ? ((rotated ? strip.L : strip.W) * sc) : ph;
-                  var rowPw = isMixedCandidate ? ((rotated ? strip.W : strip.L) * sc) : pw;
+                  var pieceDimX = isMixedCandidate ? (rotated ? strip.W : strip.L) : dPL;
+                  var pieceDimY = isMixedCandidate ? (rotated ? strip.L : strip.W) : dPW;
+                  var rowPh = pieceDimY * sc;
+                  var rowPw = pieceDimX * sc;
                   var maxRowHeight = rowPh;
 
                   Array.from({ length: dN }).forEach(function(_, col) {
                     var px = currX;
                     var py = currY;
-                    var curPieceL = isMixedCandidate ? (rotated ? strip.L : strip.W) : dPL;
-                    var curPieceW = isMixedCandidate ? (rotated ? strip.W : strip.L) : dPW;
-                    var pmCur = getPreviewMargins(curPieceL, curPieceW);
+                    var pmCur = getPreviewMargins(pieceDimX, pieceDimY);
                     var marginSvgX = pmCur.mL * sc;
                     var marginSvgY = pmCur.mW * sc;
                     var overlapSvg = overlap * sc;
-                    var pitchX = tw + 2 * overlapSvg;
-                    var pitchY = th + 2 * overlapSvg;
-                    var pIdx = row * dN + col + 1;
 
                     var curSvgTR = isMixedCandidate ? (rotated ? strip.cols : strip.rows) : svgTR;
                     var curSvgTC = isMixedCandidate ? (rotated ? strip.rows : strip.cols) : svgTC;
 
+                    var isTagRot = !!(props.selectedC && props.selectedC.optimization && props.selectedC.optimization.isTagRotated);
+                    var tagDimX = isMixedCandidate
+                      ? (rotated ? (isTagRot ? tL : tW) : (isTagRot ? tW : tL))
+                      : dTL;
+                    var tagDimY = isMixedCandidate
+                      ? (rotated ? (isTagRot ? tW : tL) : (isTagRot ? tL : tW))
+                      : dTW;
+                    var curTw = tagDimX * sc;
+                    var curTh = tagDimY * sc;
+
+                    var pitchX = curTw + 2 * overlapSvg;
+                    var pitchY = curTh + 2 * overlapSvg;
+                    var pIdx = row * dN + col + 1;
+
                     var usableW = pmCur.usableL * sc;
                     var usableH = pmCur.usableW * sc;
-                    var gridW = curSvgTR > 0 ? curSvgTR * tw + (curSvgTR - 1) * 2 * overlapSvg : 0;
-                    var gridH = curSvgTC > 0 ? curSvgTC * th + (curSvgTC - 1) * 2 * overlapSvg : 0;
+                    var gridW = curSvgTR > 0 ? (curSvgTR * curTw + (curSvgTR - 1) * 2 * overlapSvg) : 0;
+                    var gridH = curSvgTC > 0 ? (curSvgTC * curTh + (curSvgTC - 1) * 2 * overlapSvg) : 0;
 
                     var hasExtra = Number(props.reclaimedTags) > 0 || rotRowCount > 0 || rotColCount > 0 || cornerCount > 0;
                     var isCornerFit = isCornerFitCandidate;
@@ -733,17 +750,18 @@ function LayoutPreview(props) {
                     if (currX > maxX) maxX = currX;
                     if (py + extPh > maxY) maxY = py + extPh;
 
-                    var totalTagsPerPiece = curSvgTR * curSvgTC + btmReclaimH + rgtReclaimN + (hasCornerRm ? 1 : 0);
+                    var totalTagsPerPiece = isMixedCandidate ? (strip.tagsPerStrip || (curSvgTR * curSvgTC)) : (curSvgTR * curSvgTC + btmReclaimH + rgtReclaimN + (hasCornerRm ? 1 : 0));
                     var pieceIdx = row * dN + col;
 
-                    var pieceDimText = lpFmt(curPieceL) + '" × ' + lpFmt(curPieceW) + '"';
+                    var isOffcutPiece = isMixedCandidate && strip && strip.isOffcut;
+                    var pieceDimText = lpFmt(pieceDimX) + '" × ' + lpFmt(pieceDimY) + '"' + (isOffcutPiece ? ' (Offcut)' : '');
                     pieceGroups.push(
                       <g key={"p" + row + "-" + col}>
                         <rect x={px} y={py} width={extPw} height={extPh} fill="#ffffff" stroke="#999" strokeWidth={geo.swT} />
                         {/* Piece Dimension Badge */}
                         <g>
-                          <rect x={px + 4} y={py + 4} width={Math.min(extPw - 8, Math.max(50, pieceDimText.length * 6 + 12))} height={14} rx={3} fill="#1e2430" fillOpacity="0.82" />
-                          <text x={px + 8} y={py + 14} fontSize={Math.max(6, Math.min(9, sc * 0.45))} fontWeight="700" fill="#38bdf8" fontFamily="'Courier New',monospace">
+                          <rect x={px + 4} y={py + 4} width={Math.min(extPw - 8, Math.max(50, pieceDimText.length * 6 + 14))} height={14} rx={3} fill="#1e2430" fillOpacity="0.82" />
+                          <text x={px + 8} y={py + 14} fontSize={Math.max(6, Math.min(9, sc * 0.45))} fontWeight="700" fill={isOffcutPiece ? "#fbbf24" : "#38bdf8"} fontFamily="'Courier New',monospace">
                             {pieceDimText}
                           </text>
                         </g>
@@ -759,7 +777,7 @@ function LayoutPreview(props) {
                         </>}
                         {simpleMode ? (
                           <g>
-                            {curSvgTC * curSvgTR + btmReclaimH + rgtReclaimN > 1 && <text x={px + rowPw / 2} y={py + rowPh / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.max(6, Math.min(10, sc * 0.5))} fill="#888" fontFamily="'Courier New',monospace">{curSvgTC * curSvgTR + btmReclaimH + rgtReclaimN} tags</text>}
+                            {totalTagsPerPiece > 1 && <text x={px + rowPw / 2} y={py + rowPh / 2} textAnchor="middle" dominantBaseline="central" fontSize={Math.max(6, Math.min(10, sc * 0.5))} fill="#888" fontFamily="'Courier New',monospace">{totalTagsPerPiece} tags</text>}
                           </g>
                         ) : (
                         <g>
@@ -772,18 +790,19 @@ function LayoutPreview(props) {
                                 for (var si = 0; si < row; si++) {
                                   baseTagCount += (props.selectedC.strips[si].tagsPerStrip || 0) * dN;
                                 }
+                                baseTagCount += col * totalTagsPerPiece;
                               } else {
                                 baseTagCount = pieceIdx * totalTagsPerPiece;
                               }
-                              var tagNum = isMixedCandidate ? (baseTagCount + col * totalTagsPerPiece + tr * curSvgTR + tc + 1) : (pieceIdx * totalTagsPerPiece + tr * curSvgTR + tc + 1);
+                              var tagNum = baseTagCount + tr * curSvgTR + tc + 1;
                               
                               var tagId = "T" + String(tagNum);
-                              var showId = tw > 14 && th > 10;
+                              var showId = curTw > 14 && curTh > 10;
                               var idFontSize = Math.max(5, Math.min(8, sc * 0.45));
                               return (
                                 <g key={"t" + row + "-" + col + "-" + tr + "-" + tc}>
                                   {renderTagShape({
-                                    x: tx, y: ty, w: tw, h: th, sc: sc,
+                                    x: tx, y: ty, w: curTw, h: curTh, sc: sc,
                                     style: TAG_STYLE, layers: L,
                                     id: tagId, showId: showId, idFontSize: idFontSize,
                                   })}
@@ -934,7 +953,7 @@ function LayoutPreview(props) {
                 <div className="lp-info-kv"><span className="lp-info-k">Tag Size</span><span className="lp-info-v">{lpFmt(tL)} × {lpFmt(tW)}"</span></div>
                 <div className="lp-info-kv"><span className="lp-info-k">Rows</span><span className="lp-info-v">{svgTC}</span></div>
                 <div className="lp-info-kv"><span className="lp-info-k">Columns</span><span className="lp-info-v">{svgTR}</span></div>
-                <div className="lp-info-kv"><span className="lp-info-k">Tags / Piece</span><span className="lp-info-v">{optTagsPerPiece}{rotAdditions > 0 ? <span style={{color:"#2980b9",fontSize:10,marginLeft:4}}>+{rotAdditions} rot</span> : ""}</span></div>
+                <div className="lp-info-kv"><span className="lp-info-k">Tags / Piece</span><span className="lp-info-v">{props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0 ? (props.selectedC.strips[0].tagsPerStrip + " (main) / " + props.selectedC.strips[props.selectedC.strips.length - 1].tagsPerStrip + " (offcut)") : (optTagsPerPiece + (rotAdditions > 0 ? (" +" + rotAdditions + " rot") : ""))}</span></div>
                 <div className="lp-info-kv"><span className="lp-info-k">Tags / Sheet</span><span className="lp-info-v">{num(totalTags, 0)}</span></div>
               </>)}
             </div>
@@ -2718,7 +2737,10 @@ function TagCostingCalculator() {
                     {activeCandidates.slice(0, 6).map(function(c, i) {
                       var isOnePc = c.totalPieces === 1;
                       var dieSizeLabel = (c.pieceL && c.pieceW) ? (c.pieceL.toFixed(1) + "×" + c.pieceW.toFixed(1) + '"') : "";
-                      var titleText = isOnePc ? ("Bigger Die (1 pc: " + dieSizeLabel + ")") : (c.totalPieces + " pcs (" + dieSizeLabel + ")");
+                      var titleText = c.isMixed
+                        ? (c.totalPieces + " pcs (Mixed Offcut)")
+                        : (isOnePc ? ("Bigger Die (1 pc: " + dieSizeLabel + ")") : (c.totalPieces + " pcs (" + dieSizeLabel + ")"));
+                      var badgeLabel = c.isMixed ? "MIXED OFFCUT" : (isOnePc ? "BIG DIE" : c.totalPieces + " PCS");
                       return (
                         <button key={i} className={"lo-alt-btn" + (safeAltIdx === i ? " lo-alt-active" : "") + (i === 0 ? " lo-alt-best" : "")}
                           onClick={function() { handleSelectAltCandidate(i); }}>
@@ -2727,12 +2749,12 @@ function TagCostingCalculator() {
                             <span style={{
                               fontSize: 9,
                               fontWeight: 700,
-                              color: isOnePc ? "#38bdf8" : "#fbbf24",
-                              background: isOnePc ? "rgba(56, 189, 248, 0.15)" : "rgba(251, 191, 36, 0.15)",
+                              color: c.isMixed ? "#34d399" : (isOnePc ? "#38bdf8" : "#fbbf24"),
+                              background: c.isMixed ? "rgba(52, 211, 153, 0.15)" : (isOnePc ? "rgba(56, 189, 248, 0.15)" : "rgba(251, 191, 36, 0.15)"),
                               padding: "1px 5px",
                               borderRadius: 4
                             }}>
-                              {isOnePc ? "BIG DIE" : c.totalPieces + " PCS"}
+                              {badgeLabel}
                             </span>
                           </div>
                           <span className="lo-alt-stat" style={{ color: "#38bdf8", fontWeight: 700, fontSize: 11 }}>{titleText}</span>
