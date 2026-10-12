@@ -1543,7 +1543,11 @@ function TagCostingCalculator() {
           Number(sheetL) || 0, Number(sheetW) || 0,
           multiTags,
           oIn, mIn, fOff, fHand,
-          { removeSameTagBleed: removeSameTagBleed }
+          {
+            removeSameTagBleed: removeSameTagBleed,
+            overridePieces: overridePieces,
+            manualPiecesPerSheet: manualPiecesPerSheet
+          }
         );
         if (!cands || cands.length === 0) {
           return { candidates: [], calcResult: null };
@@ -1600,10 +1604,11 @@ function TagCostingCalculator() {
 
   function handleCalculateQuote() {
     if (!isOwner && !selectedSheet) return;
-    var res = runCalculation(0);
+    var targetIdx = (typeof safeAltIdx === "number" && safeAltIdx >= 0) ? safeAltIdx : 0;
+    var res = runCalculation(targetIdx);
     setLayoutCandidates(res.candidates);
     setCalc(res.calcResult);
-    setAltIdx(0);
+    setAltIdx(targetIdx);
     setHasCalculated(true);
 
     if (res.calcResult) {
@@ -1646,9 +1651,11 @@ function TagCostingCalculator() {
 
   function handleSelectAltCandidate(idx) {
     setAltIdx(idx);
-    var res = runCalculation(idx);
-    setLayoutCandidates(res.candidates);
-    setCalc(res.calcResult);
+    if (hasCalculated) {
+      var res = runCalculation(idx);
+      setLayoutCandidates(res.candidates);
+      setCalc(res.calcResult);
+    }
   }
 
   function clearQuoteHistory() {
@@ -2031,17 +2038,6 @@ function TagCostingCalculator() {
     }
   }
 
-  var safeAltIdx = altIdx > 0 && layoutCandidates && altIdx < layoutCandidates.length ? altIdx : 0;
-  var selectedC = layoutCandidates && layoutCandidates.length > 0 ? layoutCandidates[safeAltIdx] : null;
-  var activeView = isOwner ? ownerView : agentView;
-
-  var studioViewMode_state = useState("sheet");
-  var studioViewMode = studioViewMode_state[0], setStudioViewMode = studioViewMode_state[1];
-  var showLeftPalette_state = useState(true);
-  var showLeftPalette = showLeftPalette_state[0], setShowLeftPalette = showLeftPalette_state[1];
-  var showRightPalette_state = useState(true);
-  var showRightPalette = showRightPalette_state[0], setShowRightPalette = showRightPalette_state[1];
-
   var previewCandidate_state = useState(function() {
     try {
       var oIn = mm2in(Number(DEFAULT_CONFIG.cuttingOverlapMM) || 0);
@@ -2054,9 +2050,23 @@ function TagCostingCalculator() {
     }
   });
   var previewCandidate = previewCandidate_state[0], setPreviewCandidate = previewCandidate_state[1];
+  var previewCandidates_state = useState([]);
+  var previewCandidates = previewCandidates_state[0], setPreviewCandidates = previewCandidates_state[1];
+
+  var activeCandidates = (layoutCandidates && layoutCandidates.length > 0) ? layoutCandidates : previewCandidates;
+  var safeAltIdx = altIdx > 0 && activeCandidates && altIdx < activeCandidates.length ? altIdx : 0;
+  var selectedC = activeCandidates && activeCandidates.length > 0 ? activeCandidates[safeAltIdx] : null;
+  var activeView = isOwner ? ownerView : agentView;
+
+  var studioViewMode_state = useState("sheet");
+  var studioViewMode = studioViewMode_state[0], setStudioViewMode = studioViewMode_state[1];
+  var showLeftPalette_state = useState(true);
+  var showLeftPalette = showLeftPalette_state[0], setShowLeftPalette = showLeftPalette_state[1];
+  var showRightPalette_state = useState(true);
+  var showRightPalette = showRightPalette_state[0], setShowRightPalette = showRightPalette_state[1];
 
   useEffect(function() {
-    if (selectedC) return;
+    if (layoutCandidates && layoutCandidates.length > 0) return;
     if (!isOwner && !selectedSheet) return;
     var timer = setTimeout(function() {
       try {
@@ -2069,21 +2079,37 @@ function TagCostingCalculator() {
             Number(sheetL) || 0, Number(sheetW) || 0,
             multiTags,
             oIn, mIn, fOff, fHand,
-            { removeSameTagBleed: removeSameTagBleed }
+            {
+              removeSameTagBleed: removeSameTagBleed,
+              overridePieces: overridePieces,
+              manualPiecesPerSheet: manualPiecesPerSheet
+            }
           );
-          if (cands && cands.length > 0) setPreviewCandidate(cands[0]);
+          if (cands && cands.length > 0) {
+            setPreviewCandidates(cands);
+            setPreviewCandidate(cands[0]);
+          } else {
+            setPreviewCandidates([]);
+            setPreviewCandidate(null);
+          }
         } else {
           var cands = generateAllLayouts(
             Number(sheetL) || 0, Number(sheetW) || 0,
             Number(tagL) || 0, Number(tagW) || 0,
             oIn, mIn, Number(orderQty) || 5000, fOff, fHand
           );
-          if (cands && cands.length > 0) setPreviewCandidate(cands[0]);
+          if (cands && cands.length > 0) {
+            setPreviewCandidates(cands);
+            setPreviewCandidate(cands[0]);
+          } else {
+            setPreviewCandidates([]);
+            setPreviewCandidate(null);
+          }
         }
       } catch(e) {}
     }, 160);
     return function() { clearTimeout(timer); };
-  }, [selectedC, isOwner, selectedSheet, sheetL, sheetW, jobMode, multiTags, tagL, tagW, cuttingOverlapMM, insideMarginMM, printMethod, feedOffsetL, feedOffsetW, feedHandL, feedHandW, removeSameTagBleed, orderQty]);
+  }, [layoutCandidates, isOwner, selectedSheet, sheetL, sheetW, jobMode, multiTags, tagL, tagW, cuttingOverlapMM, insideMarginMM, printMethod, feedOffsetL, feedOffsetW, feedHandL, feedHandW, removeSameTagBleed, orderQty, overridePieces, manualPiecesPerSheet]);
 
   var displayCandidate = selectedC || previewCandidate;
 
@@ -2664,17 +2690,36 @@ function TagCostingCalculator() {
                 )}
 
                 {/* Alternative layout candidate selector */}
-                {layoutCandidates && layoutCandidates.length > 1 && (
+                {activeCandidates && activeCandidates.length > 1 && (
                   <div className="cad-alt-strip">
-                    {layoutCandidates.slice(0, 6).map(function(c, i) {
+                    {activeCandidates.slice(0, 6).map(function(c, i) {
+                      var isOnePc = c.totalPieces === 1;
+                      var dieSizeLabel = (c.pieceL && c.pieceW) ? (c.pieceL.toFixed(1) + "×" + c.pieceW.toFixed(1) + '"') : "";
+                      var titleText = isOnePc ? ("Bigger Die (1 pc: " + dieSizeLabel + ")") : (c.totalPieces + " pcs (" + dieSizeLabel + ")");
                       return (
                         <button key={i} className={"lo-alt-btn" + (safeAltIdx === i ? " lo-alt-active" : "") + (i === 0 ? " lo-alt-best" : "")}
                           onClick={function() { handleSelectAltCandidate(i); }}>
-                          <span className="lo-alt-label">{i === 0 ? "BEST" : "Alt " + i}</span>
-                          <span className="lo-alt-stat" style={{ color: "#10b981", fontWeight: 600 }}>{c.production ? Math.round(c.production.productionScore) : 0} <small>Score</small></span>
-                          <span className="lo-alt-stat">{num(c.totalTagsPerSheet, 0)} <small>tags/sht</small></span>
-                          <span className="lo-alt-stat">{c.wastePct.toFixed(1)}% <small>waste</small></span>
-                          <span className="lo-alt-stat">{c.production ? c.production.guillotineCuts : '?'} <small>cuts</small></span>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                            <span className="lo-alt-label">{i === 0 ? "BEST" : "Alt " + i}</span>
+                            <span style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: isOnePc ? "#38bdf8" : "#fbbf24",
+                              background: isOnePc ? "rgba(56, 189, 248, 0.15)" : "rgba(251, 191, 36, 0.15)",
+                              padding: "1px 5px",
+                              borderRadius: 4
+                            }}>
+                              {isOnePc ? "BIG DIE" : c.totalPieces + " PCS"}
+                            </span>
+                          </div>
+                          <span className="lo-alt-stat" style={{ color: "#38bdf8", fontWeight: 700, fontSize: 11 }}>{titleText}</span>
+                          <span className="lo-alt-stat" style={{ color: "#10b981", fontWeight: 600 }}>
+                            {c.production ? Math.round(c.production.productionScore) : 0} <small>Score</small> • {num(c.totalTagsPerSheet, 0)} <small>tags/sht</small>
+                          </span>
+                          <span className="lo-alt-stat">
+                            {c.wastePct.toFixed(1)}% <small>waste</small> • {c.production ? c.production.guillotineCuts : '?'} <small>cuts</small>
+                            {c.totalPiecesRun ? (" • " + c.totalPiecesRun.toLocaleString() + " pulls") : ""}
+                          </span>
                         </button>
                       );
                     })}

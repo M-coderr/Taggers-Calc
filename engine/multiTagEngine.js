@@ -187,8 +187,17 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
   if (!tagsList || !Array.isArray(tagsList) || tagsList.length === 0) return [];
 
   var removeSameTagBleed = false;
-  if (typeof options === "boolean") removeSameTagBleed = options;
-  else if (options && typeof options.removeSameTagBleed === "boolean") removeSameTagBleed = options.removeSameTagBleed;
+  var overridePieces = false;
+  var manualPiecesPerSheet = 0;
+  if (typeof options === "boolean") {
+    removeSameTagBleed = options;
+  } else if (options && typeof options === "object") {
+    if (typeof options.removeSameTagBleed === "boolean") removeSameTagBleed = options.removeSameTagBleed;
+    if (options.overridePieces) {
+      overridePieces = true;
+      manualPiecesPerSheet = Number(options.manualPiecesPerSheet) || 0;
+    }
+  }
 
   // Filter valid tags
   var validTags = tagsList.filter(function(t) {
@@ -278,11 +287,12 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
     var baseSlotsSum = activeTags.reduce(function(acc, t) { return acc + (t.baseSlots || 1); }, 0);
     if (baseSlotsSum <= 0) return;
 
-    // Test multipliers: M = 1, 2, 3, 4 (keeping total cavities <= 28)
-    var multipliers = [1];
-    if (baseSlotsSum * 2 <= 28) multipliers.push(2);
-    if (baseSlotsSum * 3 <= 28) multipliers.push(3);
-    if (baseSlotsSum * 4 <= 28) multipliers.push(4);
+    // Test multipliers: M = 1..maxM (keeping total cavities <= 30)
+    var maxM = Math.min(10, Math.floor(30 / baseSlotsSum));
+    var multipliers = [];
+    for (var mVal = 1; mVal <= maxM; mVal++) {
+      multipliers.push(mVal);
+    }
 
     multipliers.forEach(function(M) {
       var totalSlotsThisM = baseSlotsSum * M;
@@ -371,6 +381,7 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
         var pW = sheetW / ni;
         var pL = sheetL / mi;
         var totalPieces = ni * mi;
+        if (overridePieces && manualPiecesPerSheet > 0 && totalPieces !== manualPiecesPerSheet) continue;
 
         if (!fitsFeed(pL, pW) || !meetsMinSize(pL, pW)) continue;
 
@@ -799,6 +810,33 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
     if (seen[k]) return;
     seen[k] = true;
 
+    var guillotineCuts = (cfg.ni - 1) + (cfg.mi - 1);
+    var MAX_CUTS = 14;
+    var cutsScore = Math.max(0, (1 - guillotineCuts / MAX_CUTS)) * 100;
+    var pieceReuseScore = 100;
+    var handlingLabel = cfg.totalPieces === 1 ? 'Single Piece Full Sheet' : (cfg.totalPieces <= 2 ? 'Excellent' : (cfg.totalPieces <= 4 ? 'Good' : 'Moderate'));
+    var handlingScore = cfg.totalPieces === 1 ? 100 : (cfg.totalPieces <= 2 ? 90 : (cfg.totalPieces <= 4 ? 75 : 60));
+    var prodScore = Math.round(
+      util * 0.40 +
+      pieceReuseScore * 0.25 +
+      cutsScore * 0.20 +
+      handlingScore * 0.15
+    );
+    prodScore = Math.max(0, Math.min(100, prodScore));
+
+    var whySelected = [];
+    if (cfg.totalPieces === 1) {
+      whySelected.push('Bigger Die (1 pc) — full sheet fed directly with zero guillotine cuts');
+      whySelected.push('Minimum machine press impressions (' + totalPiecesRun.toLocaleString() + ' pulls)');
+    } else {
+      whySelected.push('Smaller Die (' + cfg.totalPieces + ' pcs: ' + cfg.pL.toFixed(2) + '" x ' + cfg.pW.toFixed(2) + '")');
+      whySelected.push(guillotineCuts + ' guillotine slitting cut' + (guillotineCuts > 1 ? 's' : '') + ' required (' + totalPiecesRun.toLocaleString() + ' pulls)');
+    }
+    if (util >= 65) whySelected.push('Paper utilization: ' + util.toFixed(1) + '%');
+    whySelected.push('Balanced ' + cfg.multiplier + 'x ratio across all tag SKUs');
+
+    var dieCategory = cfg.totalPieces === 1 ? "Bigger Die (1 pc)" : ("Smaller Die (" + cfg.totalPieces + " pcs)");
+
     candidates.push({
       isMultiTag: true,
       multiplier: cfg.multiplier,
@@ -845,7 +883,31 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       TL: activeTags[0] ? Number(activeTags[0].l) : 0,
       TW: activeTags[0] ? Number(activeTags[0].w) : 0,
       feedMode: feedLabel,
-      balanceScore: 100
+      balanceScore: 100,
+      production: {
+        pieceTypes: [{
+          L: cfg.pL, W: cfg.pW,
+          count: cfg.totalPieces,
+          tagsPerPiece: cfg.totalSlotsThisM,
+          rows: cfg.blocks[0] ? cfg.blocks[0].rows : 1,
+          cols: cfg.blocks[0] ? cfg.blocks[0].cols : 1,
+          sizeDesc: cfg.pL.toFixed(2) + ' \u00d7 ' + cfg.pW.toFixed(2) + '"',
+          label: cfg.totalPieces === 1 ? 'Full Sheet Die' : 'Die Piece'
+        }],
+        uniquePieceTypes: 1,
+        verticalCuts: cfg.ni - 1,
+        horizontalCuts: cfg.mi - 1,
+        guillotineCuts: guillotineCuts,
+        pieceReuseScore: pieceReuseScore,
+        rectangularScore: 100,
+        handlingScore: handlingScore,
+        handlingLabel: handlingLabel,
+        cutsScore: Math.round(cutsScore),
+        productionScore: prodScore,
+        whySelected: whySelected,
+        isMixed: false,
+        dieCategory: dieCategory
+      }
     });
   }
   } // end runSearchWithTags
@@ -867,14 +929,39 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
     }
   }
 
-  // Sort candidates by highest sheet utilization, then smallest sheet count
+  // Sort candidates:
+  // 1. Highest total tags per sheet (yield)
+  // 2. Paper utilization (within 1% tolerance)
+  // 3. When yield is equal, prioritize fewer pieces (Bigger Die: 1 pc) over more pieces (Smaller Die)
+  //    because fewer pieces require zero slitting cuts and half the machine impressions!
   candidates.sort(function(a, b) {
-    if (Math.abs(b.utilization - a.utilization) > 0.1) return b.utilization - a.utilization;
+    if (b.totalTagsPerSheet !== a.totalTagsPerSheet) return b.totalTagsPerSheet - a.totalTagsPerSheet;
+    if (Math.abs(b.utilization - a.utilization) > 1.0) return b.utilization - a.utilization;
+    if (a.totalPieces !== b.totalPieces) return a.totalPieces - b.totalPieces;
     if (a.sheetsNeeded !== b.sheetsNeeded) return a.sheetsNeeded - b.sheetsNeeded;
     return (b.pieceL * b.pieceW) - (a.pieceL * a.pieceW);
   });
 
-  return candidates;
+  // Diversify top candidates so the user has immediate access to:
+  // - Best 1-piece Bigger Die layout
+  // - Best 2-piece Smaller Die layout
+  // - Best 3-piece / 4-piece layouts
+  var primaryCandidates = [];
+  var secondaryCandidates = [];
+  var pieceKeySeen = {};
+
+  for (var dIdx = 0; dIdx < candidates.length; dIdx++) {
+    var cand = candidates[dIdx];
+    var pKey = cand.n + "x" + cand.m + "|" + cand.totalTagsPerSheet;
+    if (!pieceKeySeen[pKey]) {
+      pieceKeySeen[pKey] = true;
+      primaryCandidates.push(cand);
+    } else {
+      secondaryCandidates.push(cand);
+    }
+  }
+
+  return primaryCandidates.concat(secondaryCandidates);
 }
 
 /**
