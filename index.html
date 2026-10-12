@@ -766,6 +766,7 @@ function LayoutPreview(props) {
                           {Array.from({ length: curSvgTC }).map(function(_, tr) {
                             return Array.from({ length: curSvgTR }).map(function(_, tc) {
                               var tx = firstTagX + tc * pitchX;
+                              var ty = firstTagY + tr * pitchY;
                               var baseTagCount = 0;
                               if (isMixedCandidate) {
                                 for (var si = 0; si < row; si++) {
