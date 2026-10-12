@@ -477,7 +477,7 @@ function LayoutPreview(props) {
                   if (candBlocks) {
                     var dieMaxX = 0, dieMaxY = 0;
                     candBlocks.forEach(function(b) {
-                      var isSh = !!(b.sharedCut || props.removeSameTagBleed);
+                      var isSh = (props.removeSameTagBleed != null) ? !!props.removeSameTagBleed : !!b.sharedCut;
                       var bSpanX = (rotated ? (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)) : (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)));
                       var bSpanY = (rotated ? (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)) : (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)));
                       if (!isSh) { bSpanX -= 2 * overlap; bSpanY -= 2 * overlap; }
@@ -489,7 +489,7 @@ function LayoutPreview(props) {
                     var tagCounter = 0;
 
                     candBlocks.forEach(function(b, bi) {
-                      var isSh = !!(b.sharedCut || props.removeSameTagBleed);
+                      var isSh = (props.removeSameTagBleed != null) ? !!props.removeSameTagBleed : !!b.sharedCut;
                       var bOffX = (rotated ? b.xOffset : b.yOffset) * scDie;
                       var bOffY = (rotated ? b.yOffset : b.xOffset) * scDie;
                       var tw = (rotated ? b.tagW : b.tagL) * scDie;
@@ -564,7 +564,7 @@ function LayoutPreview(props) {
                 if (candBlocks) {
                   var dieMaxX = 0, dieMaxY = 0;
                   candBlocks.forEach(function(b) {
-                    var isSh = !!(b.sharedCut || props.removeSameTagBleed);
+                    var isSh = (props.removeSameTagBleed != null) ? !!props.removeSameTagBleed : !!b.sharedCut;
                     var bSpanX = (rotated ? (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)) : (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)));
                     var bSpanY = (rotated ? (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)) : (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)));
                     if (!isSh) { bSpanX -= 2 * overlap; bSpanY -= 2 * overlap; }
@@ -599,7 +599,7 @@ function LayoutPreview(props) {
                       var blockEls = [];
 
                       candBlocks.forEach(function(b, bi) {
-                        var isSh = !!(b.sharedCut || props.removeSameTagBleed);
+                        var isSh = (props.removeSameTagBleed != null) ? !!props.removeSameTagBleed : !!b.sharedCut;
                         var bOffX = (rotated ? b.xOffset : b.yOffset) * sc;
                         var bOffY = (rotated ? b.yOffset : b.xOffset) * sc;
                         var tw = (rotated ? b.tagW : b.tagL) * sc;
