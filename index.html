@@ -155,7 +155,7 @@ function renderTagShape(opts) {
     }
   }
 
-  if (L.center) {
+  if (L.center && !opts.crease) {
     var cs = sty.centerCross.size * sc;
     // If tag ID is shown at center, keep a small gap so text is crisp and clean
     var idGap = (opts.showId && opts.id) ? (opts.idFontSize * 1.4) : 0;
@@ -179,8 +179,22 @@ function renderTagShape(opts) {
   }
 
   if (opts.showId && opts.id) {
+    var idX = cx;
+    var idY = cy;
+    if (opts.crease) {
+      if (tw >= th) {
+        // Horizontal unfolded tag (vertical center crease rule):
+        // Shift label to the upper quadrant of the right flap, clear of both crease line and punch holes
+        idX = cx + tw * 0.25;
+        idY = cy - th * 0.25;
+      } else {
+        // Vertical unfolded tag (horizontal center crease rule):
+        idX = cx + tw * 0.25;
+        idY = cy + th * 0.25;
+      }
+    }
     els.push(
-      <text key="tid" x={cx} y={cy}
+      <text key="tid" x={idX} y={idY}
         textAnchor="middle" dominantBaseline="central"
         fontSize={opts.idFontSize} fontWeight="600"
         fill={(opts.tagColor && opts.tagColor.text) || "#555"} fontFamily="'Courier New',monospace">{opts.id}</text>
@@ -218,6 +232,32 @@ function LayoutPreview(props) {
   var isHandFeed = props.feedDirection && (props.feedDirection.indexOf('Hand') >= 0 || props.feedDirection.indexOf('Screen') >= 0);
   var isCornerFitCandidate = reclaimStrategy === 'corner-fit' && cornerCount > 0;
   var totalSheets = props.totalSheets || 0;
+
+  var candBlocks = (props.selectedC && Array.isArray(props.selectedC.blocks) && props.selectedC.blocks.length > 0) ? props.selectedC.blocks : null;
+
+  function getTagUps(t, ti) {
+    if (candBlocks && candBlocks.length > 0) {
+      var tagBlocks = candBlocks.filter(function(b) {
+        return b.tagIndex === ti || (b.tagName && t.name && b.tagName.toLowerCase() === t.name.toLowerCase());
+      });
+      if (tagBlocks.length > 0) {
+        return tagBlocks.reduce(function(sum, b) { return sum + (b.count || b.slots || 0); }, 0);
+      }
+    }
+    if (props.selectedC && props.selectedC.itemizedTags) {
+      var it = props.selectedC.itemizedTags.find(function(item) {
+        return item.id === t.id || item.name === t.name || item.tagIndex === ti;
+      });
+      if (it && it.slots) return it.slots;
+    }
+    if (props.selectedC && props.selectedC.slotsByTag && props.selectedC.slotsByTag[ti] != null) {
+      return props.selectedC.slotsByTag[ti];
+    }
+    if (props.selectedC && props.selectedC.tagsList && props.selectedC.tagsList[ti]) {
+      return props.selectedC.tagsList[ti].baseSlots || props.selectedC.tagsList[ti].ratioUp || 1;
+    }
+    return t.slots || t.ratioUp || 1;
+  }
 
   var valid = sL > 0 && sW > 0 && pL > 0 && pW > 0;
   var totalTags = valid ? n * m * optTagsPerPiece : 0;
@@ -871,13 +911,7 @@ function LayoutPreview(props) {
           <div className="lp-legend">
             {props.isMultiTag && props.multiTagsList && props.multiTagsList.map(function(t, ti) {
               var col = getMultiTagColor(ti);
-              var curUps = 1;
-              if (props.selectedC && props.selectedC.itemizedTags) {
-                var it = props.selectedC.itemizedTags.find(function(item) { return item.id === t.id || item.name === t.name; });
-                if (it) curUps = it.slots;
-              } else if (props.selectedC && props.selectedC.tagsList && props.selectedC.tagsList[ti]) {
-                curUps = props.selectedC.tagsList[ti].baseSlots || props.selectedC.tagsList[ti].ratioUp || 1;
-              }
+              var curUps = getTagUps(t, ti);
               return (
                 <div key={"mt-leg-" + ti} className="lp-leg-item">
                   <div className="lp-leg-swatch" style={{ background: col.fill, border: "1.5px solid " + col.cut }} />
@@ -909,8 +943,7 @@ function LayoutPreview(props) {
                 <div className="lp-info-k" style={{marginTop:"6px"}}><div className="lp-info-label">Combo Die Tags ({props.multiTagsList.length})</div></div>
                 {props.multiTagsList.map(function(t, ti) {
                   var col = getMultiTagColor(ti);
-                  var itemInfo = props.selectedC && props.selectedC.itemizedTags ? props.selectedC.itemizedTags.find(function(it) { return it.id === t.id; }) : null;
-                  var curUps = itemInfo ? itemInfo.slots : (t.slots || 1);
+                  var curUps = getTagUps(t, ti);
                   return (
                     <div key={"info-t-" + ti} className="lp-info-kv">
                       <span className="lp-info-k" style={{ color: col.cut, fontWeight: 700 }}>{t.name || ("Tag " + (ti + 1))}</span>

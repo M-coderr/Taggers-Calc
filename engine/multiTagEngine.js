@@ -828,6 +828,19 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       wastePct: wastePct,
       blocks: cfg.blocks,
       tagsList: activeTags,
+      slotsByTag: slotsByTag,
+      itemizedTags: Object.keys(slotsByTag).map(function(tIdx) {
+        var tObj = activeTags[tIdx] || {};
+        return {
+          id: tObj.id || ("mt_" + tIdx),
+          tagIndex: Number(tIdx),
+          name: nameByTag[tIdx] || tObj.name || ("Tag " + (Number(tIdx) + 1)),
+          slots: slotsByTag[tIdx],
+          l: tObj.l,
+          w: tObj.w,
+          targetQty: targetQtyByTag[tIdx]
+        };
+      }),
       totalSlots: cfg.totalSlotsThisM,
       TL: activeTags[0] ? Number(activeTags[0].l) : 0,
       TW: activeTags[0] ? Number(activeTags[0].w) : 0,
@@ -1000,7 +1013,8 @@ function computeMultiTagCosts(layout, tagsList, params) {
     var pricePerTag = qtyProduced > 0 ? tagAllocatedPrice / qtyProduced : 0;
 
     return {
-      id: "mt_" + tIdx,
+      id: (tagsList && tagsList[tIdx] && tagsList[tIdx].id) ? tagsList[tIdx].id : ("mt_" + tIdx),
+      tagIndex: Number(tIdx),
       name: agg.name,
       prefix: agg.prefix,
       color: agg.color,
