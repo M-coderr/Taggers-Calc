@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
 <title>TagX Costing Calculator</title>
-<link rel="stylesheet" href="styles.css?v=2.3" />
+<link rel="stylesheet" href="styles.css?v=2.4" />
 </head>
 <body>
 <div id="root"></div>
@@ -205,8 +205,9 @@ function renderTagShape(opts) {
 }
 
 function LayoutPreview(props) {
-  var viewMode_state = React.useState("sheet");
-  var viewMode = viewMode_state[0], setViewMode = viewMode_state[1];
+  var viewMode_state = React.useState(props.viewMode || "sheet");
+  var viewMode = (props.viewMode !== undefined) ? props.viewMode : viewMode_state[0];
+  var setViewMode = props.onViewModeChange || viewMode_state[1];
   var sL = Number(props.sheetLength) || 0;
   var sW = Number(props.sheetWidth) || 0;
   var pL = Number(props.pieceLength) || 0;
@@ -2081,6 +2082,43 @@ function TagCostingCalculator() {
   var selectedC = layoutCandidates && layoutCandidates.length > 0 ? layoutCandidates[safeAltIdx] : null;
   var activeView = isOwner ? ownerView : agentView;
 
+  var studioViewMode_state = useState("sheet");
+  var studioViewMode = studioViewMode_state[0], setStudioViewMode = studioViewMode_state[1];
+  var showLeftPalette_state = useState(true);
+  var showLeftPalette = showLeftPalette_state[0], setShowLeftPalette = showLeftPalette_state[1];
+  var showRightPalette_state = useState(true);
+  var showRightPalette = showRightPalette_state[0], setShowRightPalette = showRightPalette_state[1];
+
+  var previewCandidate = useMemo(function() {
+    if (selectedC) return selectedC;
+    if (!isOwner && !selectedSheet) return null;
+    try {
+      var oIn = mm2in(Number(cuttingOverlapMM) || 0);
+      var mIn = mm2in(Number(insideMarginMM) || 0);
+      var fOff = printMethod === 'offset' ? [Number(feedOffsetL) || 0, Number(feedOffsetW) || 0] : [0, 0];
+      var fHand = printMethod === 'hand' ? [Number(feedHandL) || 0, Number(feedHandW) || 0] : [0, 0];
+      if (jobMode === "multi") {
+        var cands = generateMultiTagLayouts(
+          Number(sheetL) || 0, Number(sheetW) || 0,
+          multiTags,
+          oIn, mIn, fOff, fHand,
+          { removeSameTagBleed: removeSameTagBleed }
+        );
+        return (cands && cands.length > 0) ? cands[0] : null;
+      }
+      var cands = generateAllLayouts(
+        Number(sheetL) || 0, Number(sheetW) || 0,
+        Number(tagL) || 0, Number(tagW) || 0,
+        oIn, mIn, Number(orderQty) || 5000, fOff, fHand
+      );
+      return (cands && cands.length > 0) ? cands[0] : null;
+    } catch(e) {
+      return null;
+    }
+  }, [selectedC, isOwner, selectedSheet, sheetL, sheetW, jobMode, multiTags, tagL, tagW, cuttingOverlapMM, insideMarginMM, printMethod, feedOffsetL, feedOffsetW, feedHandL, feedHandW, removeSameTagBleed, orderQty]);
+
+  var displayCandidate = selectedC || previewCandidate;
+
   var visibleHistory = isOwner ? quoteHistory : quoteHistory.filter(function(item) {
     var curUser = session ? (session.username || "").toLowerCase() : "";
     var curName = session ? session.name : "";
@@ -2128,8 +2166,8 @@ function TagCostingCalculator() {
             <button className="tc-dash-btn tc-dash-btn-logout" onClick={handleLogout}><X /> Logout</button>
           </div>
         </div>
-        <div className={"tc-grid" + (activeView !== "calculator" ? " tc-grid-single" : "")}>
-          <div className="tc-ticket">
+        {activeView !== "calculator" && (
+          <div className="cad-full-view-palette">
             {isOwner && ownerView === "sheets" && (<>
               <div className="tc-section-title"><Layers /> Sheet catalogue</div>
               <div className="tc-field-hint" style={{ marginBottom: 10 }}>Agents pick a sheet by number only - size and rate are pulled from here automatically.</div>
@@ -2243,7 +2281,85 @@ function TagCostingCalculator() {
                 )}
               </div>
             </>)}
-            {activeView === "calculator" ? (<>
+          </div>
+        )}
+        {activeView === "calculator" && (
+          <div className="cad-studio-layout">
+            <div className="cad-studio-toolbar">
+              <div className="cad-tool-group">
+                <div className="cad-studio-badge">
+                  <span className="cad-badge-dot" /> CAD DIE STUDIO
+                </div>
+                <button
+                  type="button"
+                  className={"cad-tool-btn" + (jobMode === "single" ? " active" : "")}
+                  onClick={function() { setJobMode("single"); }}
+                >
+                  Single Tag Die
+                </button>
+                <button
+                  type="button"
+                  className={"cad-tool-btn" + (jobMode === "multi" ? " active" : "")}
+                  onClick={function() { setJobMode("multi"); }}
+                >
+                  Multi-Tag Combo ({multiTags.length})
+                </button>
+              </div>
+
+              <div className="cad-tool-group">
+                {jobMode === "multi" && (
+                  <button
+                    type="button"
+                    className={"cad-tool-btn cad-common-cut-btn" + (removeSameTagBleed ? " active" : "")}
+                    onClick={function() { setRemoveSameTagBleed(function(b) { return !b; }); }}
+                    title="Toggle Common Knife Cut between identical tags (No Bleed)"
+                  >
+                    <span>✂</span> Common Cut: {removeSameTagBleed ? "ACTIVE" : "OFF"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={"cad-tool-btn" + (studioViewMode === "die" ? " active" : "")}
+                  onClick={function() { setStudioViewMode("die"); }}
+                >
+                  Single Die View
+                </button>
+                <button
+                  type="button"
+                  className={"cad-tool-btn" + (studioViewMode === "sheet" ? " active" : "")}
+                  onClick={function() { setStudioViewMode("sheet"); }}
+                >
+                  Full Sheet View
+                </button>
+              </div>
+
+              <div className="cad-tool-group">
+                <button
+                  type="button"
+                  className={"cad-palette-toggle-btn" + (showLeftPalette ? " active" : "")}
+                  onClick={function() { setShowLeftPalette(function(p) { return !p; }); }}
+                  title="Toggle Tag & Sheet Specs Panel"
+                >
+                  Specs Panel {showLeftPalette ? "◀" : "▶"}
+                </button>
+                <button
+                  type="button"
+                  className={"cad-palette-toggle-btn" + (showRightPalette ? " active" : "")}
+                  onClick={function() { setShowRightPalette(function(p) { return !p; }); }}
+                  title="Toggle Commercials & Quote Panel"
+                >
+                  Commercials {showRightPalette ? "▶" : "◀"}
+                </button>
+              </div>
+            </div>
+
+            <div className="cad-studio-workspace">
+              <div className={"cad-floating-palette cad-palette-left" + (!showLeftPalette ? " cad-palette-hidden" : "")}>
+                <div className="cad-palette-title-bar">
+                  <div className="cad-palette-title"><Scissors size={14} /> Tag & Sheet Specifications</div>
+                  <button type="button" className="cad-palette-min-btn" onClick={function() { setShowLeftPalette(false); }}>✕</button>
+                </div>
+                <div className="cad-palette-body">
               {!isOwner && <div className="tc-section-title" style={{ marginTop: 0, marginBottom: 14 }}><Users /> Welcome, {session.name}</div>}
               <div className="tc-section-title"><Layers /> Sheet & material</div>
               {isOwner ? (<>
@@ -2522,28 +2638,134 @@ function TagCostingCalculator() {
                   </div>
                 </div>
               </>)}
-              <button
-                type="button"
-                className="tc-calc-btn"
-                onClick={handleCalculateQuote}
-                disabled={hasCalculated}
-              >
-                {hasCalculated ? <Check size={16} /> : <Calculator size={16} />}
-                {hasCalculated ? "Quote Calculated" : "Calculate Quote"}
-              </button>
-            </>) : null}
-          </div>
-          {activeView === "calculator" && (
-            !hasCalculated ? (
-              <div className="tc-tag" style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "40px 20px", textAlign: "center", color: "#666" }}>
-                <div>{!selectedSheet && !isOwner ? "Select a sheet number and click 'Calculate Quote'." : "Click 'Calculate Quote' to generate price ticket."}</div>
+                  <button
+                    type="button"
+                    className="tc-calc-btn"
+                    onClick={handleCalculateQuote}
+                    disabled={hasCalculated}
+                  >
+                    {hasCalculated ? <Check size={16} /> : <Calculator size={16} />}
+                    {hasCalculated ? "Quote Calculated" : "Calculate & Build Die"}
+                  </button>
+                </div>
               </div>
-            ) : !calc ? (
-              <div className="tc-tag" style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "40px 20px", textAlign: "center", color: "#666" }}>
-                <div>No valid layouts found. The resulting pieces might be smaller than the machine's required minimum feed size. Adjust dimensions.</div>
+
+              {/* CENTER HERO CANVAS: FULL CAD DIE BOARD */}
+              <div className="cad-canvas-center">
+                {suggestedLayout && (
+                  <div className="suggestion-banner" style={{ background: "rgba(25, 118, 210, 0.15)", border: "1px solid rgba(25, 118, 210, 0.3)", padding: "12px 16px", borderRadius: 8, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ color: "#38bdf8", fontSize: 13 }}>
+                      <strong>💡 Pro Tip: Reduce Waste!</strong><br />
+                      Changing your tag size slightly to <strong>{suggestedLayout.tagL.toFixed(3)} × {suggestedLayout.tagW.toFixed(3)}"</strong> (-{suggestedLayout.dec.toFixed(3)}") will fit <strong>{suggestedLayout.tagsPerSheet} tags</strong> per sheet (up from {displayCandidate ? displayCandidate.totalTagsPerSheet : 0}), dropping waste to <strong>{suggestedLayout.wastePct.toFixed(1)}%</strong>.
+                    </div>
+                    <button style={{ background: "#10b981", color: "white", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontWeight: 600 }} onClick={function() {
+                      setTagL(suggestedLayout.tagL);
+                      setTagW(suggestedLayout.tagW);
+                    }}>Apply Suggestion</button>
+                  </div>
+                )}
+                {displayCandidate ? (
+                  <MemoLayoutPreview title="Layout Preview"
+                    viewMode={studioViewMode}
+                    onViewModeChange={setStudioViewMode}
+                    isMultiTag={jobMode === "multi"}
+                    multiTagsList={multiTags}
+                    removeSameTagBleed={removeSameTagBleed}
+                    selectedC={displayCandidate}
+                    sheetLength={sheetL} sheetWidth={sheetW}
+                    pieceLength={displayCandidate ? displayCandidate.pieceL : (calc ? calc.pieceL : sheetL)}
+                    pieceWidth={displayCandidate ? displayCandidate.pieceW : (calc ? calc.pieceW : sheetW)}
+                    piecesAcross={displayCandidate ? displayCandidate.n : (calc ? calc.n : 1)}
+                    piecesDown={displayCandidate ? displayCandidate.m : (calc ? calc.m : 1)}
+                    tagLength={displayCandidate ? (displayCandidate.isMultiTag && multiTags[0] ? multiTags[0].l : displayCandidate.TL) : (calc ? calc.TL : tagL)}
+                    tagWidth={displayCandidate ? (displayCandidate.isMultiTag && multiTags[0] ? multiTags[0].w : displayCandidate.TW) : (calc ? calc.TW : tagW)}
+                    tagsAcross={displayCandidate ? displayCandidate.tagsRows : (calc ? calc.tagsRows : 1)}
+                    tagsDown={displayCandidate ? displayCandidate.tagsCols : (calc ? calc.tagsCols : 1)}
+                    renderTagsAcross={displayCandidate && displayCandidate.optimization ? displayCandidate.optimization.renderCols : (calc ? calc.tagsCols : 1)}
+                    renderTagsDown={displayCandidate && displayCandidate.optimization ? displayCandidate.optimization.renderRows : (calc ? calc.tagsRows : 1)}
+                    optimizedTagsPerPiece={displayCandidate ? (displayCandidate.totalSlots || (displayCandidate.optimization ? displayCandidate.optimization.finalTags : displayCandidate.tagsPerPieceNominal)) : (calc ? (calc.totalSlots || (calc.tagsRows * calc.tagsCols)) : 1)}
+                    rotAdditions={displayCandidate && displayCandidate.optimization ? displayCandidate.optimization.rotAdditions : 0}
+                    rotColCount={displayCandidate && displayCandidate.optimization ? displayCandidate.optimization.rotColCount : 0}
+                    rotRowCount={displayCandidate && displayCandidate.optimization ? displayCandidate.optimization.rotRowCount : 0}
+                    cornerCount={displayCandidate && displayCandidate.optimization ? (displayCandidate.optimization.cornerCount || 0) : 0}
+                    cornerTagL={displayCandidate && displayCandidate.optimization ? (displayCandidate.optimization.cornerTagL || 0) : 0}
+                    cornerTagW={displayCandidate && displayCandidate.optimization ? (displayCandidate.optimization.cornerTagW || 0) : 0}
+                    reclaimStrategy={displayCandidate && displayCandidate.optimization ? displayCandidate.optimization.reclaimStrategy : 'strip'}
+                    overlap={calc ? calc.overlapIn : mm2in(cuttingOverlapMM || 0)}
+                    margin={calc ? calc.marginIn : mm2in(insideMarginMM || 0)}
+                    tagRotated={displayCandidate && displayCandidate.optimization ? displayCandidate.optimization.isTagRotated : false}
+                    orientation={(displayCandidate && displayCandidate.isRotated) ? "Tag rotated 90deg" : "Tag as entered"}
+                    totalSheets={calc ? calc.sheetsNeeded : 0}
+                    quantity={orderQty}
+                    feedDirection={printMethod === "offset" ? "Offset press feed" : "Screen-print feed"} />
+                ) : (
+                  <div className="cad-empty-board">
+                    <div className="cad-empty-icon">📐</div>
+                    <div className="cad-empty-title">CAD Die Layout Workspace</div>
+                    <div className="cad-empty-sub">Enter dimensions on the left to generate the die layout.</div>
+                  </div>
+                )}
+
+                {/* Alternative layout candidate selector */}
+                {layoutCandidates && layoutCandidates.length > 1 && (
+                  <div className="cad-alt-strip">
+                    {layoutCandidates.slice(0, 6).map(function(c, i) {
+                      return (
+                        <button key={i} className={"lo-alt-btn" + (safeAltIdx === i ? " lo-alt-active" : "") + (i === 0 ? " lo-alt-best" : "")}
+                          onClick={function() { handleSelectAltCandidate(i); }}>
+                          <span className="lo-alt-label">{i === 0 ? "BEST" : "Alt " + i}</span>
+                          <span className="lo-alt-stat" style={{ color: "#10b981", fontWeight: 600 }}>{c.production ? Math.round(c.production.productionScore) : 0} <small>Score</small></span>
+                          <span className="lo-alt-stat">{num(c.totalTagsPerSheet, 0)} <small>tags/sht</small></span>
+                          <span className="lo-alt-stat">{c.wastePct.toFixed(1)}% <small>waste</small></span>
+                          <span className="lo-alt-stat">{c.production ? c.production.guillotineCuts : '?'} <small>cuts</small></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {displayCandidate && displayCandidate.production && (
+                  <div className="production-panel" style={{ marginTop: 12, padding: 12, background: "rgba(26, 30, 42, 0.9)", border: "1px solid rgba(255, 255, 255, 0.1)", fontSize: 13, borderRadius: 8, color: "#cbd5e1" }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, color: "#38bdf8" }}>Production Analysis (Score: {Math.round(displayCandidate.production.productionScore)})</div>
+                    <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                      <div>
+                        <strong style={{ color: "#f1f5f9" }}>Piece Types ({displayCandidate.production.uniquePieceTypes}):</strong>
+                        <ul style={{ margin: "4px 0", paddingLeft: 20 }}>
+                          {displayCandidate.production.pieceTypes.map(function(pt, i) {
+                            return <li key={i}>{pt.count} × {pt.label} ({pt.sizeDesc}) — {pt.tagsPerPiece} tags</li>;
+                          })}
+                        </ul>
+                      </div>
+                      <div>
+                        <strong style={{ color: "#f1f5f9" }}>Production Stats:</strong>
+                        <ul style={{ margin: "4px 0", paddingLeft: 20 }}>
+                          <li>Guillotine Cuts: {displayCandidate.production.guillotineCuts}</li>
+                          <li>Handling: {displayCandidate.production.handlingLabel}</li>
+                          <li>Paper Utilization: {displayCandidate.utilization.toFixed(1)}%</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <strong style={{ color: "#f1f5f9" }}>Why Selected:</strong>
+                        <ul style={{ margin: "4px 0", paddingLeft: 20, color: "#34d399" }}>
+                          {displayCandidate.production.whySelected.map(function(reason, i) {
+                            return <li key={i}>✔ {reason}</li>;
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div>
+
+              {/* RIGHT FLOATING PALETTE: INSTANT COSTING & COMMERCIALS */}
+              <div className={"cad-floating-palette cad-palette-right" + (!showRightPalette ? " cad-palette-hidden" : "")}>
+                <div className="cad-palette-title-bar">
+                  <div className="cad-palette-title"><Percent size={14} /> Instant Costing & Commercials</div>
+                  <button type="button" className="cad-palette-min-btn" onClick={function() { setShowRightPalette(false); }}>✕</button>
+                </div>
+                <div className="cad-palette-body">
+                  {hasCalculated && calc ? (
+                    <div>
                 {isOwner ? (
                   <div className="tc-tag">
                     <div className="tc-tag-hole-loop" />
@@ -2841,112 +3063,21 @@ function TagCostingCalculator() {
                   </div>
                 )}
               </div>
-            )
-          )}
-        </div>
-        {isOwner && activeView === "calculator" && hasCalculated && calc && (
-          <div style={{ maxWidth: 1180, margin: "18px auto 0" }}>
-            <button className={"tc-assump-toggle" + (showLayoutPreview ? " open" : "")} onClick={function() { setShowLayoutPreview(function(s) { return !s; }); }}><ChevronDown /> {showLayoutPreview ? "Hide" : "Show"} visual layout preview</button>
-            {showLayoutPreview && <div style={{ marginTop: 12 }}>
-              {layoutCandidates && layoutCandidates.length > 1 && (
-                <div className="lo-alt-bar">
-                  {layoutCandidates.slice(0, 6).map(function(c, i) {
-                    return (
-                      <button key={i} className={"lo-alt-btn" + (safeAltIdx === i ? " lo-alt-active" : "") + (i === 0 ? " lo-alt-best" : "")}
-                        onClick={function() { handleSelectAltCandidate(i); }}>
-                        <span className="lo-alt-label">{i === 0 ? "BEST" : "Alt " + i}</span>
-                        <span className="lo-alt-stat" style={{ color: "#2e7d32", fontWeight: 600 }}>{c.production ? Math.round(c.production.productionScore) : 0} <small>Score</small></span>
-                        <span className="lo-alt-stat">{num(c.totalTagsPerSheet, 0)} <small>tags/sht</small></span>
-                        <span className="lo-alt-stat">{c.wastePct.toFixed(1)}% <small>waste</small></span>
-                        <span className="lo-alt-stat">{c.production ? c.production.guillotineCuts : '?'} <small>cuts</small></span>
-                        <span className="lo-alt-reason">{c.reasons ? c.reasons.join(', ') : (c.desc || '')}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {Array.isArray(layoutCandidates) && layoutCandidates.length === 0 ? (
-                <div className="lo-no-layout">No manufacturable layout found for current machine.</div>
-              ) : (
-              <div style={{ marginTop: layoutCandidates && layoutCandidates.length > 1 ? 12 : 0 }}>
-                {suggestedLayout && (
-                  <div className="suggestion-banner" style={{ background: "#e3f2fd", border: "1px solid #bbdefb", padding: "12px 16px", borderRadius: 6, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ color: "#0d47a1", fontSize: 14 }}>
-                      <strong>💡 Pro Tip: Reduce Waste!</strong><br />
-                      Changing your tag size slightly to <strong>{suggestedLayout.tagL.toFixed(3)} × {suggestedLayout.tagW.toFixed(3)}"</strong> (-{suggestedLayout.dec.toFixed(3)}") will fit <strong>{suggestedLayout.tagsPerSheet} tags</strong> per sheet (up from {selectedC ? selectedC.totalTagsPerSheet : 0}), dropping waste to <strong>{suggestedLayout.wastePct.toFixed(1)}%</strong>.
-                    </div>
-                    <button style={{ background: "#1976d2", color: "white", border: "none", padding: "8px 16px", borderRadius: 4, cursor: "pointer", fontWeight: 600 }} onClick={function() {
-                      setTagL(suggestedLayout.tagL);
-                      setTagW(suggestedLayout.tagW);
-                    }}>Apply Suggestion</button>
-                  </div>
-                )}
-                <MemoLayoutPreview title="Layout Preview"
-                  isMultiTag={jobMode === "multi"}
-                  multiTagsList={multiTags}
-                  removeSameTagBleed={removeSameTagBleed}
-                  selectedC={selectedC}
-                  sheetLength={sheetL} sheetWidth={sheetW}
-                  pieceLength={selectedC ? selectedC.pieceL : calc.pieceL}
-                  pieceWidth={selectedC ? selectedC.pieceW : calc.pieceW}
-                  piecesAcross={selectedC ? selectedC.n : calc.n}
-                  piecesDown={selectedC ? selectedC.m : calc.m}
-                  tagLength={selectedC ? (selectedC.isMultiTag && multiTags[0] ? multiTags[0].l : selectedC.TL) : (calc ? calc.TL : tagL)}
-                  tagWidth={selectedC ? (selectedC.isMultiTag && multiTags[0] ? multiTags[0].w : selectedC.TW) : (calc ? calc.TW : tagW)}
-                  tagsAcross={selectedC ? selectedC.tagsRows : calc.tagsRows}
-                  tagsDown={selectedC ? selectedC.tagsCols : calc.tagsCols}
-                  renderTagsAcross={selectedC && selectedC.optimization ? selectedC.optimization.renderCols : calc.tagsCols}
-                  renderTagsDown={selectedC && selectedC.optimization ? selectedC.optimization.renderRows : calc.tagsRows}
-                  optimizedTagsPerPiece={selectedC ? (selectedC.totalSlots || (selectedC.optimization ? selectedC.optimization.finalTags : selectedC.tagsPerPieceNominal)) : (calc.totalSlots || (calc.tagsRows * calc.tagsCols))}
-                  rotAdditions={selectedC && selectedC.optimization ? selectedC.optimization.rotAdditions : 0}
-                  rotColCount={selectedC && selectedC.optimization ? selectedC.optimization.rotColCount : 0}
-                  rotRowCount={selectedC && selectedC.optimization ? selectedC.optimization.rotRowCount : 0}
-                  cornerCount={selectedC && selectedC.optimization ? (selectedC.optimization.cornerCount || 0) : 0}
-                  cornerTagL={selectedC && selectedC.optimization ? (selectedC.optimization.cornerTagL || 0) : 0}
-                  cornerTagW={selectedC && selectedC.optimization ? (selectedC.optimization.cornerTagW || 0) : 0}
-                  reclaimStrategy={selectedC && selectedC.optimization ? selectedC.optimization.reclaimStrategy : 'strip'}
-                  overlap={calc.overlapIn} margin={calc.marginIn}
-                  tagRotated={selectedC && selectedC.optimization ? selectedC.optimization.isTagRotated : false}
-                  orientation={calc.isRotated ? "Tag rotated 90deg" : "Tag as entered"}
-                  totalSheets={calc.sheetsNeeded} quantity={orderQty}
-                  feedDirection={printMethod === "offset" ? "Offset press feed" : "Screen-print feed"} />
-                {selectedC && selectedC.production && (
-                  <div className="production-panel" style={{ marginTop: 12, padding: 12, background: "#f8f9fa", border: "1px solid #ddd", fontSize: 13, borderRadius: 4 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 8 }}>Production Analysis (Score: {Math.round(selectedC.production.productionScore)})</div>
-                    <div style={{ display: "flex", gap: 20 }}>
-                      <div>
-                        <strong>Piece Types ({selectedC.production.uniquePieceTypes}):</strong>
-                        <ul style={{ margin: "4px 0", paddingLeft: 20 }}>
-                          {selectedC.production.pieceTypes.map(function(pt, i) {
-                            return <li key={i}>{pt.count} × {pt.label} ({pt.sizeDesc}) — {pt.tagsPerPiece} tags</li>;
-                          })}
-                        </ul>
-                      </div>
-                      <div>
-                        <strong>Production Stats:</strong>
-                        <ul style={{ margin: "4px 0", paddingLeft: 20 }}>
-                          <li>Guillotine Cuts: {selectedC.production.guillotineCuts}</li>
-                          <li>Handling: {selectedC.production.handlingLabel}</li>
-                          <li>Paper Utilization: {selectedC.utilization.toFixed(1)}%</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <strong>Why Selected:</strong>
-                        <ul style={{ margin: "4px 0", paddingLeft: 20, color: "#2e7d32" }}>
-                          {selectedC.production.whySelected.map(function(reason, i) {
-                            return <li key={i}>✔ {reason}</li>;
-                          })}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
+            ) : (
+              <div className="cad-quote-idle-box">
+                <div className="cad-idle-badge">READY TO QUOTE</div>
+                <div className="cad-idle-title">Commercials Pending</div>
+                <div className="cad-idle-desc">Configure your tags and sheet parameters in the Specs panel, then click <strong>Calculate & Build Die</strong> to compute live factory commercials.</div>
+                <button type="button" className="tc-calc-btn" style={{ marginTop: 16 }} onClick={handleCalculateQuote}>
+                  <Calculator size={15} /> Calculate Quote Now
+                </button>
               </div>
-              )}
-            </div>
-            }
+            )}
           </div>
-        )}
+        </div>
+      </div>
+    </div>
+  )}
         {showTicketModal && (
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.65)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: 16 }}>
             <div style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 580, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}>
