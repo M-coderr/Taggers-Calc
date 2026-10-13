@@ -1703,6 +1703,8 @@ function TagCostingCalculator() {
   var manualPiecesPerSheet = manualPiecesPerSheet_state[0], setManualPiecesPerSheet = manualPiecesPerSheet_state[1];
   var showAdvancedLayout_state = useState(false);
   var showAdvancedLayout = showAdvancedLayout_state[0], setShowAdvancedLayout = showAdvancedLayout_state[1];
+  var showFinishing_state = useState(false);
+  var showFinishing = showFinishing_state[0], setShowFinishing = showFinishing_state[1];
   var altIdx_state = useState(0);
   var altIdx = altIdx_state[0], setAltIdx = altIdx_state[1];
 
@@ -3097,36 +3099,55 @@ function TagCostingCalculator() {
                 <div className={"tc-choice" + (printMethod === "offset" ? " tc-choice-active" : "")} onClick={function() { setPrintMethod("offset"); }}>Offset</div>
               </div>
               {printMethod === "hand" && <Field label="Number of colors" hint={isOwner ? "Rs500 per color per 1000 pulls" : undefined}><NumberInput value={colors} onChange={setColors} min={1} step={1} /></Field>}
-              <div className="tc-section-title"><CircleDot /> Lamination & finishing</div>
-              <div className="tc-row">
-                <Toggle checked={lamination} onChange={setLamination} onLabel="Matt lamination - yes" offLabel="No lamination" />
-                <Toggle checked={repeatDie} onChange={setRepeatDie} onLabel="Repeat Die (No die charges)" offLabel="New Die (Charges apply)" />
+              {/* Lamination & Finishing (Collapsible) */}
+              <div
+                className="tc-section-title tc-collapsible-title"
+                onClick={function() { setShowFinishing(function(prev) { return !prev; }); }}
+                title={showFinishing ? "Click to collapse finishing options" : "Click to expand finishing options"}
+                style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", userSelect: "none" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <CircleDot /> Lamination &amp; finishing
+                  {(lamination || foil || emboss || repeatDie) && <span className="tc-active-tag">Active</span>}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, textTransform: "none", color: "#64748b", fontWeight: 600 }}>
+                  <span>{showFinishing ? "Collapse" : "Optional"}</span>
+                  <ChevronDown style={{ transform: showFinishing ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", width: 14, height: 14 }} />
+                </div>
               </div>
-              <div className="tc-row" style={{ marginTop: 8 }}>
-                <Toggle checked={foil} onChange={setFoil} onLabel="Foil Stamping - Yes" offLabel="No Foil" />
-                <Toggle checked={emboss} onChange={setEmboss} onLabel="Embossing - Yes" offLabel="No Emboss" />
-              </div>
-              {foil && (
-                <div style={{ background: "rgba(0,0,0,0.03)", padding: "10px 12px", borderRadius: 6, marginTop: 8, border: "1px solid rgba(0,0,0,0.08)" }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Foil Stamping Area</div>
+              {showFinishing && (
+                <div className="tc-collapsible-content">
                   <div className="tc-row">
-                    <Field label="Foil length"><NumberInput value={foilL} onChange={setFoilL} suffix="in" /></Field>
-                    <Field label="Foil width"><NumberInput value={foilW} onChange={setFoilW} suffix="in" /></Field>
+                    <Toggle checked={lamination} onChange={setLamination} onLabel="Matt lamination - yes" offLabel="No lamination" />
+                    <Toggle checked={repeatDie} onChange={setRepeatDie} onLabel="Repeat Die (No die charges)" offLabel="New Die (Charges apply)" />
                   </div>
-                  {isOwner && <div className="tc-field-hint">Foil: Rs0.20/tag (≤2x2"), Rs0.25/tag (≤2x4"), Rs0.30/tag (>2x4") + Rs250 block charge</div>}
+                  <div className="tc-row" style={{ marginTop: 8 }}>
+                    <Toggle checked={foil} onChange={setFoil} onLabel="Foil Stamping - Yes" offLabel="No Foil" />
+                    <Toggle checked={emboss} onChange={setEmboss} onLabel="Embossing - Yes" offLabel="No Emboss" />
+                  </div>
+                  {foil && (
+                    <div style={{ background: "rgba(0,0,0,0.03)", padding: "10px 12px", borderRadius: 6, marginTop: 8, border: "1px solid rgba(0,0,0,0.08)" }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Foil Stamping Area</div>
+                      <div className="tc-row">
+                        <Field label="Foil length"><NumberInput value={foilL} onChange={setFoilL} suffix="in" /></Field>
+                        <Field label="Foil width"><NumberInput value={foilW} onChange={setFoilW} suffix="in" /></Field>
+                      </div>
+                      {isOwner && <div className="tc-field-hint">Foil: Rs0.20/tag (≤2x2"), Rs0.25/tag (≤2x4"), Rs0.30/tag (>2x4") + Rs250 block charge</div>}
+                    </div>
+                  )}
+                  {emboss && (
+                    <div style={{ background: "rgba(0,0,0,0.03)", padding: "10px 12px", borderRadius: 6, marginTop: 8, border: "1px solid rgba(0,0,0,0.08)" }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Embossing Area</div>
+                      <div className="tc-row">
+                        <Field label="Emboss length"><NumberInput value={embossL} onChange={setEmbossL} suffix="in" /></Field>
+                        <Field label="Emboss width"><NumberInput value={embossW} onChange={setEmbossW} suffix="in" /></Field>
+                      </div>
+                      {isOwner && <div className="tc-field-hint">Emboss: Rs0.25/tag (≤2x3", Rs500 block), Rs0.30/tag (>2x3", Rs1,000 block)</div>}
+                    </div>
+                  )}
+                  <div className="tc-field-hint" style={{ marginBottom: 4, marginTop: 6 }}>Die punching is applied to every job automatically unless Repeat Die is checked.</div>
                 </div>
               )}
-              {emboss && (
-                <div style={{ background: "rgba(0,0,0,0.03)", padding: "10px 12px", borderRadius: 6, marginTop: 8, border: "1px solid rgba(0,0,0,0.08)" }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Embossing Area</div>
-                  <div className="tc-row">
-                    <Field label="Emboss length"><NumberInput value={embossL} onChange={setEmbossL} suffix="in" /></Field>
-                    <Field label="Emboss width"><NumberInput value={embossW} onChange={setEmbossW} suffix="in" /></Field>
-                  </div>
-                  {isOwner && <div className="tc-field-hint">Emboss: Rs0.25/tag (≤2x3", Rs500 block), Rs0.30/tag (>2x3", Rs1,000 block)</div>}
-                </div>
-              )}
-              <div className="tc-field-hint" style={{ marginBottom: 10, marginTop: 6 }}>Die punching is applied to every job automatically unless Repeat Die is checked.</div>
               <div className="tc-section-title"><Truck /> Order</div>
               <div className="tc-row">
                 {jobMode === "single" ? (
