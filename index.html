@@ -1739,15 +1739,15 @@ function TagCostingCalculator() {
   var newSheetRate_state = useState(PAPER_DEFAULTS.sheetRate);
   var newSheetRate = newSheetRate_state[0], setNewSheetRate = newSheetRate_state[1];
 
-  var sheetL_state = useState(PAPER_DEFAULTS.sheetL);
+  var sheetL_state = useState(0);
   var sheetL = sheetL_state[0], setSheetL = sheetL_state[1];
-  var sheetW_state = useState(PAPER_DEFAULTS.sheetW);
+  var sheetW_state = useState(0);
   var sheetW = sheetW_state[0], setSheetW = sheetW_state[1];
   var sheetRate_state = useState(PAPER_DEFAULTS.sheetRate);
   var sheetRate = sheetRate_state[0], setSheetRate = sheetRate_state[1];
-  var tagL_state = useState(2);
+  var tagL_state = useState(0);
   var tagL = tagL_state[0], setTagL = tagL_state[1];
-  var tagW_state = useState(4);
+  var tagW_state = useState(0);
   var tagW = tagW_state[0], setTagW = tagW_state[1];
 
   var jobMode_state = useState("single");
@@ -2150,12 +2150,15 @@ function TagCostingCalculator() {
 
   function handleCalculateQuote() {
     if (!isOwner && !selectedSheet) return;
+    if (Number(sheetL) <= 0 || Number(sheetW) <= 0) return;
+    if (jobMode === "single" && (Number(tagL) <= 0 || Number(tagW) <= 0)) return;
     var targetIdx = (typeof safeAltIdx === "number" && safeAltIdx >= 0) ? safeAltIdx : 0;
     var res = runCalculation(targetIdx);
     setLayoutCandidates(res.candidates);
     setCalc(res.calcResult);
     setAltIdx(targetIdx);
     setHasCalculated(true);
+    setShowRightPalette(true);
 
     if (res.calcResult) {
       var finishingParts = [];
@@ -2585,17 +2588,7 @@ function TagCostingCalculator() {
     }
   }
 
-  var previewCandidate_state = useState(function() {
-    try {
-      var oIn = mm2in(Number(DEFAULT_CONFIG.cuttingOverlapMM) || 0);
-      var mIn = mm2in(Number(DEFAULT_CONFIG.insideMarginMM) || 0);
-      var fHand = [Number(DEFAULT_CONFIG.feedHandL) || 0, Number(DEFAULT_CONFIG.feedHandW) || 0];
-      var cands = generateAllLayouts(PAPER_DEFAULTS.sheetL, PAPER_DEFAULTS.sheetW, 2, 4, oIn, mIn, 5000, [0, 0], fHand);
-      return (cands && cands.length > 0) ? cands[0] : null;
-    } catch(e) {
-      return null;
-    }
-  });
+  var previewCandidate_state = useState(null);
   var previewCandidate = previewCandidate_state[0], setPreviewCandidate = previewCandidate_state[1];
   var previewCandidates_state = useState([]);
   var previewCandidates = previewCandidates_state[0], setPreviewCandidates = previewCandidates_state[1];
@@ -2609,7 +2602,7 @@ function TagCostingCalculator() {
   var studioViewMode = studioViewMode_state[0], setStudioViewMode = studioViewMode_state[1];
   var showLeftPalette_state = useState(true);
   var showLeftPalette = showLeftPalette_state[0], setShowLeftPalette = showLeftPalette_state[1];
-  var showRightPalette_state = useState(true);
+  var showRightPalette_state = useState(false);
   var showRightPalette = showRightPalette_state[0], setShowRightPalette = showRightPalette_state[1];
 
   useEffect(function() {
@@ -3163,7 +3156,7 @@ function TagCostingCalculator() {
                     type="button"
                     className="tc-calc-btn"
                     onClick={handleCalculateQuote}
-                    disabled={hasCalculated}
+                    disabled={hasCalculated || (Number(sheetL) <= 0 || Number(sheetW) <= 0 || (jobMode === "single" && (Number(tagL) <= 0 || Number(tagW) <= 0)))}
                   >
                     {hasCalculated ? <Check size={16} /> : <Calculator size={16} />}
                     {hasCalculated ? "Quote Calculated" : "Calculate & Build Die"}
