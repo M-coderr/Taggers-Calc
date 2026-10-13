@@ -533,23 +533,19 @@ html, body {
 }
 
 .lp-drawing {
+  position: relative;
   padding: 14px;
   background: #191c24;
   background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
   background-size: 14px 14px;
-  contain: layout style paint;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  overflow: auto;
+  max-height: 780px;
 }
 
 .lp-svg {
   width: 100%;
   height: auto;
   display: block;
-  contain: layout style paint;
-  will-change: transform;
-  pointer-events: none;
   filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.5));
 }
 
