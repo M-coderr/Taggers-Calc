@@ -601,13 +601,13 @@ function LayoutPreview(props) {
               flexWrap: "wrap"
             }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 800, color: "#38bdf8", letterSpacing: "0.5px", fontSize: 14, paddingTop: 4, whiteSpace: "nowrap" }}>
+                <span className="lp-piece-spec-title" style={{ fontWeight: 800, color: "#38bdf8", letterSpacing: "0.5px", fontSize: 14, paddingTop: 4, whiteSpace: "nowrap" }}>
                   ✂️ PIECE SIZES:
                 </span>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
                   {pieceSummaryList.map(function(item, idx) {
                     return (
-                      <span key={idx} style={{
+                      <span key={idx} className={item.isOffcut ? "lp-piece-badge-offcut" : "lp-piece-badge-main"} style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 8,
@@ -620,14 +620,14 @@ function LayoutPreview(props) {
                         fontSize: 13,
                         fontFamily: "'Courier New',monospace"
                       }}>
-                        <span>{item.count} pcs × <strong style={{ fontSize: 13.5 }}>{item.dimText}</strong></span>
-                        <span style={{ fontSize: 12, opacity: 0.9, fontWeight: 600 }}>({item.tagsPerPiece} tags/pc{item.isOffcut ? " • Offcut" : ""})</span>
+                        <span className="lp-badge-text">{item.count} pcs × <strong style={{ fontSize: 13.5 }}>{item.dimText}</strong></span>
+                        <span className="lp-badge-sub" style={{ fontSize: 12, opacity: 0.9, fontWeight: 600 }}>({item.tagsPerPiece} tags/pc{item.isOffcut ? " • Offcut" : ""})</span>
                       </span>
                     );
                   })}
                 </div>
               </div>
-              <div style={{ fontSize: 12.5, color: "#94a3b8", paddingTop: 4 }}>
+              <div className="lp-piece-total-box" style={{ fontSize: 12.5, color: "#94a3b8", paddingTop: 4 }}>
                 Total: <strong style={{ color: "#f8fafc", fontSize: 13.5 }}>{totalPiecesCount} pieces</strong> ({num(totalTags, 0)} tags/sheet)
               </div>
             </div>
@@ -1331,11 +1331,11 @@ function LayoutPreview(props) {
               <div className="lp-info-kv"><span className="lp-info-k">Paper Size</span><span className="lp-info-v">{lpFmt(sL)} × {lpFmt(sW)}"</span></div>
               <div className="lp-info-kv"><span className="lp-info-k">Pieces</span><span className="lp-info-v">{props.selectedC && props.selectedC.isMixed ? props.selectedC.strips.map(function(s){return s.count;}).reduce(function(a,b){return a+b},0) : n * m}</span></div>
               {props.selectedC && props.selectedC.isMixed ? (
-                <div style={{ margin: "6px 0 8px 0", padding: "8px 10px", background: "rgba(56, 189, 248, 0.08)", borderRadius: 5, border: "1px solid rgba(56, 189, 248, 0.25)" }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#38bdf8", marginBottom: 4 }}>Piece Sizes:</div>
+                <div className="lp-info-piece-box" style={{ margin: "6px 0 8px 0", padding: "8px 10px", background: "rgba(56, 189, 248, 0.08)", borderRadius: 5, border: "1px solid rgba(56, 189, 248, 0.25)" }}>
+                  <div className="lp-info-piece-title" style={{ fontSize: 12.5, fontWeight: 700, color: "#38bdf8", marginBottom: 4 }}>Piece Sizes:</div>
                   {pieceSummaryList.map(function(item, idx) {
                     return (
-                      <div key={idx} style={{ fontSize: 12.5, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", color: item.isOffcut ? "#f59e0b" : "#e2e8f0" }}>
+                      <div key={idx} className={item.isOffcut ? "lp-info-piece-row-offcut" : "lp-info-piece-row-main"} style={{ fontSize: 12.5, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", color: item.isOffcut ? "#f59e0b" : "#e2e8f0" }}>
                         <span><strong>{item.count} pcs</strong> × {item.dimText}</span>
                         <span style={{ fontSize: 11.5, opacity: 0.9 }}>({item.tagsPerPiece} UP{item.isOffcut ? " • Offcut" : ""})</span>
                       </div>
