@@ -326,7 +326,7 @@ function LayoutPreview(props) {
 
   var geo = React.useMemo(function() {
     if (!valid) return null;
-    var VB_W = 860, PAD_T = 44, PAD_R = 48, PAD_L = 64, PAD_B = 42;
+    var VB_W = 880, PAD_T = 44, PAD_R = 48, PAD_L = 72, PAD_B = 46;
     var cW = VB_W - PAD_L - PAD_R;
     var cH = 480 - PAD_T - PAD_B;
     var sc = Math.min(cW / dL, cH / dW);
@@ -341,10 +341,10 @@ function LayoutPreview(props) {
     var tw = dTL * sc, th = dTW * sc;
     var wasteRight = Math.max(0, dL - dN * dPL) * sc;
     var wasteBottom = Math.max(0, dW - dM * dPW) * sc;
-    var fsT = Math.max(11, Math.min(18, sc * 0.9));
-    var fsD = Math.max(10, Math.min(15, sc * 0.75));
-    var fsL = Math.max(7, Math.min(11, sc * 0.55));
-    var fsS = Math.max(6, Math.min(9, sc * 0.4));
+    var fsT = Math.max(13, Math.min(22, sc * 1.05));
+    var fsD = Math.max(12, Math.min(18, sc * 0.9));
+    var fsL = Math.max(9, Math.min(14, sc * 0.7));
+    var fsS = Math.max(7.5, Math.min(11, sc * 0.5));
     var swT = Math.max(0.4, Math.min(1, sc * 0.04));
     var swM = Math.max(0.8, Math.min(1.8, sc * 0.07));
     var swE = Math.max(1.2, Math.min(2.5, sc * 0.1));
@@ -496,37 +496,38 @@ function LayoutPreview(props) {
               background: "#182232",
               border: "1px solid rgba(56, 189, 248, 0.3)",
               borderRadius: 6,
-              padding: "7px 12px",
-              marginBottom: 8,
-              fontSize: 12,
+              padding: "8px 14px",
+              marginBottom: 9,
+              fontSize: 13.5,
               color: "#e2e8f0",
-              gap: 10,
+              gap: 12,
               flexWrap: "wrap"
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 800, color: "#38bdf8", letterSpacing: "0.5px" }}>✂️ PIECE SIZES:</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 800, color: "#38bdf8", letterSpacing: "0.5px", fontSize: 14 }}>✂️ PIECE SIZES:</span>
                 {pieceSummaryList.map(function(item, idx) {
                   return (
                     <span key={idx} style={{
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: 6,
+                      gap: 8,
                       background: item.isOffcut ? "rgba(245, 158, 11, 0.15)" : "rgba(56, 189, 248, 0.12)",
                       border: "1px solid " + (item.isOffcut ? "#f59e0b" : "#38bdf8"),
                       color: item.isOffcut ? "#fbbf24" : "#e0f2fe",
-                      padding: "2px 8px",
+                      padding: "3px 10px",
                       borderRadius: 4,
                       fontWeight: 700,
+                      fontSize: 13,
                       fontFamily: "'Courier New',monospace"
                     }}>
-                      <span>{item.count} pcs × <strong>{item.dimText}</strong></span>
-                      <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 600 }}>({item.tagsPerPiece} tags/pc{item.isOffcut ? " • Offcut" : ""})</span>
+                      <span>{item.count} pcs × <strong style={{ fontSize: 13.5 }}>{item.dimText}</strong></span>
+                      <span style={{ fontSize: 12, opacity: 0.9, fontWeight: 600 }}>({item.tagsPerPiece} tags/pc{item.isOffcut ? " • Offcut" : ""})</span>
                     </span>
                   );
                 })}
               </div>
-              <div style={{ fontSize: 11, color: "#94a3b8" }}>
-                Total: <strong style={{ color: "#f8fafc" }}>{totalPiecesCount} pieces</strong> ({num(totalTags, 0)} tags/sheet)
+              <div style={{ fontSize: 12.5, color: "#94a3b8" }}>
+                Total: <strong style={{ color: "#f8fafc", fontSize: 13 }}>{totalPiecesCount} pieces</strong> ({num(totalTags, 0)} tags/sheet)
               </div>
             </div>
           )}
@@ -752,7 +753,7 @@ function LayoutPreview(props) {
                         <g key={"p-" + row + "-" + col}>
                           <rect x={px} y={py} width={pw} height={ph} fill="#ffffff" stroke="#888" strokeWidth={geo.swT} />
                           <title>{"Piece " + (pieceIdx + 1) + ": " + pieceDimText}</title>
-                          <text x={px + 3} y={py + 7} fontSize={Math.max(5, Math.min(7, sc * 0.35))} fontWeight="700" fill="#64748b" fontFamily="'Courier New',monospace">
+                          <text x={px + 3} y={py + 8} fontSize={Math.max(6, Math.min(8.5, sc * 0.42))} fontWeight="700" fill="#64748b" fontFamily="'Courier New',monospace">
                             P{pieceIdx + 1}
                           </text>
                           {blockEls}
@@ -876,7 +877,7 @@ function LayoutPreview(props) {
                       <g key={"p" + row + "-" + col}>
                         <rect x={px} y={py} width={extPw} height={extPh} fill="#ffffff" stroke={isOffcutPiece ? "#d97706" : "#999"} strokeWidth={geo.swT} strokeDasharray={isOffcutPiece ? "3,2" : undefined} />
                         <title>{"Piece " + pIdx + ": " + pieceDimText + " (" + totalTagsPerPiece + " tags)"}</title>
-                        <text x={px + 3} y={py + 7} fontSize={Math.max(5, Math.min(7, sc * 0.35))} fontWeight="700" fill={isOffcutPiece ? "#b45309" : "#64748b"} fontFamily="'Courier New',monospace">
+                        <text x={px + 3} y={py + 8} fontSize={Math.max(6, Math.min(8.5, sc * 0.42))} fontWeight="700" fill={isOffcutPiece ? "#b45309" : "#64748b"} fontFamily="'Courier New',monospace">
                           P{pIdx}
                         </text>
                         {!simpleMode && <>
@@ -1042,11 +1043,11 @@ function LayoutPreview(props) {
                               <line x1={dimLeftX - 3} y1={rY1 + 3} x2={dimLeftX + 3} y2={rY1 - 3} stroke={dimColor} strokeWidth={1.2} />
                               <line x1={dimLeftX - 3} y1={rY2 + 3} x2={dimLeftX + 3} y2={rY2 - 3} stroke={dimColor} strokeWidth={1.2} />
                               {/* Dimension text */}
-                              <text x={dimLeftX - 5} y={rowHItem.isOffcut ? midY - 4 : midY} textAnchor="end" dominantBaseline="central" fontSize={Math.max(6.5, Math.min(8.5, sc * 0.42))} fontWeight="700" fill={dimColor} fontFamily="'Courier New',monospace">
+                              <text x={dimLeftX - 6} y={rowHItem.isOffcut ? midY - 5 : midY} textAnchor="end" dominantBaseline="central" fontSize={Math.max(8, Math.min(11, sc * 0.52))} fontWeight="700" fill={dimColor} fontFamily="'Courier New',monospace">
                                 {lpFmt(rowHItem.inches)}"
                               </text>
                               {rowHItem.isOffcut && (
-                                <text x={dimLeftX - 5} y={midY + 6} textAnchor="end" dominantBaseline="central" fontSize={Math.max(5.5, Math.min(7, sc * 0.35))} fontWeight="700" fill="#b45309" fontFamily="sans-serif">
+                                <text x={dimLeftX - 6} y={midY + 7} textAnchor="end" dominantBaseline="central" fontSize={Math.max(6.5, Math.min(8.5, sc * 0.4))} fontWeight="700" fill="#b45309" fontFamily="sans-serif">
                                   ✂️ Offcut
                                 </text>
                               )}
@@ -1084,7 +1085,7 @@ function LayoutPreview(props) {
                               <line x1={cX1 - 3} y1={dimBtmY + 3} x2={cX1 + 3} y2={dimBtmY - 3} stroke={dimColor} strokeWidth={1.2} />
                               <line x1={cX2 - 3} y1={dimBtmY + 3} x2={cX2 + 3} y2={dimBtmY - 3} stroke={dimColor} strokeWidth={1.2} />
                               {/* Dimension text */}
-                              <text x={midX} y={dimBtmY + 11} textAnchor="middle" dominantBaseline="hanging" fontSize={Math.max(6.5, Math.min(8.5, sc * 0.42))} fontWeight="700" fill={dimColor} fontFamily="'Courier New',monospace">
+                              <text x={midX} y={dimBtmY + 12} textAnchor="middle" dominantBaseline="hanging" fontSize={Math.max(8, Math.min(11, sc * 0.52))} fontWeight="700" fill={dimColor} fontFamily="'Courier New',monospace">
                                 Piece: {lpFmt(colWItem.inches)}"
                               </text>
                             </g>
@@ -1128,13 +1129,13 @@ function LayoutPreview(props) {
               <div className="lp-info-kv"><span className="lp-info-k">Paper Size</span><span className="lp-info-v">{lpFmt(sL)} × {lpFmt(sW)}"</span></div>
               <div className="lp-info-kv"><span className="lp-info-k">Pieces</span><span className="lp-info-v">{props.selectedC && props.selectedC.isMixed ? props.selectedC.strips.map(function(s){return s.count;}).reduce(function(a,b){return a+b},0) : n * m}</span></div>
               {props.selectedC && props.selectedC.isMixed ? (
-                <div style={{ margin: "5px 0 6px 0", padding: "6px 8px", background: "rgba(56, 189, 248, 0.06)", borderRadius: 4, border: "1px solid rgba(56, 189, 248, 0.2)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#38bdf8", marginBottom: 3 }}>Piece Sizes:</div>
+                <div style={{ margin: "6px 0 8px 0", padding: "8px 10px", background: "rgba(56, 189, 248, 0.08)", borderRadius: 5, border: "1px solid rgba(56, 189, 248, 0.25)" }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#38bdf8", marginBottom: 4 }}>Piece Sizes:</div>
                   {pieceSummaryList.map(function(item, idx) {
                     return (
-                      <div key={idx} style={{ fontSize: 11, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 0", color: item.isOffcut ? "#f59e0b" : "#e2e8f0" }}>
+                      <div key={idx} style={{ fontSize: 12.5, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", color: item.isOffcut ? "#f59e0b" : "#e2e8f0" }}>
                         <span><strong>{item.count} pcs</strong> × {item.dimText}</span>
-                        <span style={{ fontSize: 10, opacity: 0.85 }}>({item.tagsPerPiece} UP{item.isOffcut ? " • Offcut" : ""})</span>
+                        <span style={{ fontSize: 11.5, opacity: 0.9 }}>({item.tagsPerPiece} UP{item.isOffcut ? " • Offcut" : ""})</span>
                       </div>
                     );
                   })}
