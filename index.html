@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
-<title>TagX Costing Calculator</title>
+<title>Taggers Costing Studio</title>
 <link rel="stylesheet" href="styles.css?v=2.5" />
 </head>
 <body>
@@ -1624,7 +1624,7 @@ function SplashScreen() {
             <span className="tc-splash-dot" /> PRECISION DIE &amp; NESTING STUDIO
           </div>
           <h1 className="tc-splash-title">
-            Tag<span>Costing</span> Ticket
+            Taggers <span>Costing</span> Studio
           </h1>
           <div className="tc-splash-badge-row">
             <span className="tc-splash-badge tc-badge-cyan">v2.2.5 beta</span>
@@ -2405,7 +2405,7 @@ function TagCostingCalculator() {
       ctx.textAlign = "center";
       ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
       ctx.fillStyle = "#8a7762";
-      ctx.fillText("JOB ORDER COSTING TICKET", cx, cardY + 72);
+      ctx.fillText("TAGGERS COSTING STUDIO", cx, cardY + 72);
 
       ctx.font = "bold 26px Georgia, serif";
       ctx.fillStyle = "#2b211c";
@@ -2674,7 +2674,7 @@ function TagCostingCalculator() {
       {appPhase === "login" && (
         <div className="tc-login-wrap">
           <div className="tc-login-card">
-            <div className="tc-login-title">Tag <span>Costing</span></div>
+            <div className="tc-login-title">Taggers <span>Costing</span> Studio</div>
             <div className="tc-login-sub">Sign in to continue</div>
             <div className="tc-login-field"><label>Username</label><input type="text" placeholder="Enter your username" value={loginUsername} onChange={function(e) { setLoginUsername(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") handleLogin(); }} autoFocus /></div>
             <div className="tc-login-field"><label>Password</label><input type="password" placeholder="Enter your password" value={loginPassword} onChange={function(e) { setLoginPassword(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") handleLogin(); }} /></div>
@@ -2686,7 +2686,7 @@ function TagCostingCalculator() {
 
       {appPhase === "dashboard" && (<>
         <div className="tc-header">
-          <div><div className="tc-eyebrow">Job Costing - Tag Manufacturing</div><h1 className="tc-title">Tag <span>Costing</span> Ticket</h1></div>
+          <div><div className="tc-eyebrow">Job Costing - Tag Manufacturing</div><h1 className="tc-title">Taggers <span>Costing</span> Studio</h1></div>
           <div className="tc-sub">{isOwner ? "Full breakdown & business settings." : "Enter the job details to get your price."}</div>
         </div>
         <div className="tc-dashboard-menu">
@@ -3625,7 +3625,7 @@ function TagCostingCalculator() {
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.65)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: 16 }}>
             <div style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 580, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}>
               <div style={{ padding: "14px 20px", background: "var(--card-head)", borderBottom: "1px solid var(--line-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontWeight: 700, fontSize: 16, color: "var(--ink)" }}>Order Ticket Card Preview</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: "var(--ink)" }}>Costing Card Preview</div>
                 <button onClick={function() { setShowTicketModal(false); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)" }}><X size={18} /></button>
               </div>
               <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", justifyContent: "center", alignItems: "center", background: "#eae5da" }}>
