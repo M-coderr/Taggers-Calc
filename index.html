@@ -1571,6 +1571,95 @@ function LineItem(props) {
   );
 }
 
+function SplashScreen() {
+  var stages = [
+    { pct: 22, label: "Initializing Nesting CAD Engine..." },
+    { pct: 54, label: "Loading Sheet Catalogues & Die Board Specs..." },
+    { pct: 85, label: "Calibrating Margin Buffers & Punch Presets..." },
+    { pct: 100, label: "System Ready • Launching Studio..." }
+  ];
+  var stageState = React.useState(0);
+  var stageIdx = stageState[0];
+  var setStageIdx = stageState[1];
+
+  React.useEffect(function() {
+    var t1 = setTimeout(function() { setStageIdx(1); }, 380);
+    var t2 = setTimeout(function() { setStageIdx(2); }, 900);
+    var t3 = setTimeout(function() { setStageIdx(3); }, 1420);
+    return function() {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, []);
+
+  var currentStage = stages[stageIdx] || stages[0];
+
+  return (
+    <div className="tc-splash-wrap">
+      <div className="tc-splash-bg-glow" />
+      <div className="tc-splash-card">
+        <div className="tc-splash-emblem-wrap">
+          <div className="tc-splash-emblem-halo" />
+          <svg className="tc-splash-emblem-svg" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="44" cy="44" r="41" stroke="rgba(56, 189, 248, 0.25)" strokeWidth="1.5" strokeDasharray="4 4" className="tc-splash-spin-ring" />
+            <circle cx="44" cy="44" r="35" stroke="rgba(16, 185, 129, 0.35)" strokeWidth="1" strokeDasharray="12 6 2 6" className="tc-splash-spin-rev" />
+            
+            <path d="M28 22 H52 L62 32 V64 C62 65.6569 60.6569 67 59 67 H28 C26.3431 67 25 65.6569 25 64 V25 C25 23.3431 26.3431 22 28 22 Z" 
+                  fill="rgba(56, 189, 248, 0.08)" stroke="#38bdf8" strokeWidth="2.2" strokeLinejoin="round" />
+            <circle cx="51" cy="33" r="3" fill="#0f172a" stroke="#38bdf8" strokeWidth="1.8" />
+            <line x1="31" y1="42" x2="56" y2="42" stroke="rgba(255, 255, 255, 0.2)" strokeWidth="1.2" strokeDasharray="2 2" />
+            <line x1="31" y1="50" x2="56" y2="50" stroke="rgba(255, 255, 255, 0.2)" strokeWidth="1.2" strokeDasharray="2 2" />
+            <line x1="31" y1="58" x2="48" y2="58" stroke="rgba(56, 189, 248, 0.5)" strokeWidth="1.5" />
+            
+            <path d="M20 28 V20 H28" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M68 28 V20 H60" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M20 60 V68 H28" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M68 60 V68 H60" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+
+        <div className="tc-splash-brand">
+          <div className="tc-splash-eyebrow">
+            <span className="tc-splash-dot" /> PRECISION DIE &amp; NESTING STUDIO
+          </div>
+          <h1 className="tc-splash-title">
+            Tag<span>Costing</span> Ticket
+          </h1>
+          <div className="tc-splash-badge-row">
+            <span className="tc-splash-badge tc-badge-cyan">v2.2.5 beta</span>
+            <span className="tc-splash-badge tc-badge-green">CAD Engine 2.0</span>
+            <span className="tc-splash-badge tc-badge-amber">Offline Ready</span>
+          </div>
+        </div>
+
+        <div className="tc-splash-progress-block">
+          <div className="tc-splash-status-row">
+            <span className="tc-splash-status-label">{currentStage.label}</span>
+            <span className="tc-splash-status-pct">{currentStage.pct}%</span>
+          </div>
+          <div className="tc-splash-track">
+            <div 
+              className="tc-splash-fill" 
+              style={{ width: currentStage.pct + "%" }}
+            >
+              <div className="tc-splash-fill-shine" />
+            </div>
+          </div>
+        </div>
+
+        <div className="tc-splash-foot">
+          <span>Multi-Cut Reclaim</span>
+          <span className="tc-splash-foot-sep">•</span>
+          <span>Vector Sheet Optimizer</span>
+          <span className="tc-splash-foot-sep">•</span>
+          <span>Auto-Save Storage</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TagCostingCalculator() {
   var useState = React.useState, useMemo = React.useMemo, useEffect = React.useEffect, useRef = React.useRef;
 
@@ -2580,7 +2669,7 @@ function TagCostingCalculator() {
 
   return (
     <div className="tc-root">
-      {appPhase === "splash" && (<div className="tc-splash"><div className="tc-splash-brand">Tag <span>Costing</span></div><div className="tc-splash-spinner" /><div className="tc-splash-bar"><div className="tc-splash-bar-fill" /></div><div className="tc-splash-text">Loading...</div></div>)}
+      {appPhase === "splash" && <SplashScreen />}
 
       {appPhase === "login" && (
         <div className="tc-login-wrap">
