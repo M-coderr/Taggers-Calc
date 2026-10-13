@@ -713,9 +713,10 @@ function LayoutPreview(props) {
                     var dieMaxX = 0, dieMaxY = 0;
                     candBlocks.forEach(function(b) {
                       var isSh = (props.removeSameTagBleed != null) ? !!props.removeSameTagBleed : !!b.sharedCut;
-                      var bSpanX = (rotated ? (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)) : (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)));
-                      var bSpanY = (rotated ? (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)) : (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)));
-                      if (!isSh) { bSpanX -= 2 * overlap; bSpanY -= 2 * overlap; }
+                      var sW = (b.spanW != null) ? b.spanW : (b.cols * (isSh ? b.tagW : b.cutW) - (isSh ? 0 : 2 * overlap));
+                      var sL = (b.spanL != null) ? b.spanL : (b.rows * (isSh ? b.tagL : b.cutL) - (isSh ? 0 : 2 * overlap));
+                      var bSpanX = rotated ? (b.xOffset + sW) : (b.yOffset + sL);
+                      var bSpanY = rotated ? (b.yOffset + sL) : (b.xOffset + sW);
                       if (bSpanX > dieMaxX) dieMaxX = bSpanX;
                       if (bSpanY > dieMaxY) dieMaxY = bSpanY;
                     });
@@ -800,9 +801,10 @@ function LayoutPreview(props) {
                   var dieMaxX = 0, dieMaxY = 0;
                   candBlocks.forEach(function(b) {
                     var isSh = (props.removeSameTagBleed != null) ? !!props.removeSameTagBleed : !!b.sharedCut;
-                    var bSpanX = (rotated ? (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)) : (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)));
-                    var bSpanY = (rotated ? (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)) : (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)));
-                    if (!isSh) { bSpanX -= 2 * overlap; bSpanY -= 2 * overlap; }
+                    var sW = (b.spanW != null) ? b.spanW : (b.cols * (isSh ? b.tagW : b.cutW) - (isSh ? 0 : 2 * overlap));
+                    var sL = (b.spanL != null) ? b.spanL : (b.rows * (isSh ? b.tagL : b.cutL) - (isSh ? 0 : 2 * overlap));
+                    var bSpanX = rotated ? (b.xOffset + sW) : (b.yOffset + sL);
+                    var bSpanY = rotated ? (b.yOffset + sL) : (b.xOffset + sW);
                     if (bSpanX > dieMaxX) dieMaxX = bSpanX;
                     if (bSpanY > dieMaxY) dieMaxY = bSpanY;
                   });

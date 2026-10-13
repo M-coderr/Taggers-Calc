@@ -316,8 +316,8 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
         // Normal orientation
         var cutL_norm = isShared ? tL : (tL + 2 * actualOverlap);
         var cutW_norm = isShared ? tW : (tW + 2 * actualOverlap);
-        var spanL_norm = isShared ? (rows * tL) : (rows * cutL_norm);
-        var spanW_norm = isShared ? (cols * tW) : (cols * cutW_norm);
+        var spanL_norm = isShared ? (rows * tL) : (rows * tL + (rows - 1) * gutter);
+        var spanW_norm = isShared ? (cols * tW) : (cols * tW + (cols - 1) * gutter);
 
         blockVariations.push({
           tagIndex: tIdx,
@@ -344,8 +344,8 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
         // Rotated 90°
         var cutL_rot = isShared ? tW : (tW + 2 * actualOverlap);
         var cutW_rot = isShared ? tL : (tL + 2 * actualOverlap);
-        var spanL_rot = isShared ? (rows * tW) : (rows * cutL_rot);
-        var spanW_rot = isShared ? (cols * tL) : (cols * cutW_rot);
+        var spanL_rot = isShared ? (rows * tW) : (rows * tW + (rows - 1) * gutter);
+        var spanW_rot = isShared ? (cols * tL) : (cols * tL + (cols - 1) * gutter);
 
         blockVariations.push({
           tagIndex: tIdx,
@@ -388,8 +388,6 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
         var uDims = getUsablePiece(pL, pW);
         var usableL = uDims.usableL;
         var usableW = uDims.usableW;
-        var effL = usableL + 2 * actualOverlap;
-        var effW = usableW + 2 * actualOverlap;
 
         for (var ci = 0; ci < blockCombinations.length; ci++) {
           var blocks = blockCombinations[ci];
@@ -398,11 +396,12 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
           var totalStackL = 0;
           var maxStackW = 0;
           for (var bi = 0; bi < blocks.length; bi++) {
+            if (bi > 0) totalStackL += gutter;
             totalStackL += blocks[bi].spanL;
             if (blocks[bi].spanW > maxStackW) maxStackW = blocks[bi].spanW;
           }
 
-          if (totalStackL <= effL + 0.001 && maxStackW <= effW + 0.001) {
+          if (totalStackL <= usableL + 0.001 && maxStackW <= usableW + 0.001) {
             var placedBlocksV = [];
             var currY = 0;
             for (var bIdx = 0; bIdx < blocks.length; bIdx++) {
@@ -410,7 +409,7 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
                 xOffset: 0,
                 yOffset: currY
               }));
-              currY += blocks[bIdx].spanL;
+              currY += blocks[bIdx].spanL + gutter;
             }
 
             addMultiCandidate({
@@ -429,11 +428,12 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
           var totalStackW = 0;
           var maxStackL = 0;
           for (var bi2 = 0; bi2 < blocks.length; bi2++) {
+            if (bi2 > 0) totalStackW += gutter;
             totalStackW += blocks[bi2].spanW;
             if (blocks[bi2].spanL > maxStackL) maxStackL = blocks[bi2].spanL;
           }
 
-          if (maxStackL <= effL + 0.001 && totalStackW <= effW + 0.001) {
+          if (maxStackL <= usableL + 0.001 && totalStackW <= usableW + 0.001) {
             var placedBlocksH = [];
             var currX = 0;
             for (var bIdx2 = 0; bIdx2 < blocks.length; bIdx2++) {
@@ -441,7 +441,7 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
                 xOffset: currX,
                 yOffset: 0
               }));
-              currX += blocks[bIdx2].spanW;
+              currX += blocks[bIdx2].spanW + gutter;
             }
 
             addMultiCandidate({
@@ -456,20 +456,22 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
             });
           }
 
-          // Formation 3: 2-Column Split (Gang Layout matching photo)
+          // Formation 3: 2-Column Split (Gang Layout)
           if (blocks.length >= 2) {
             for (var splitIdx = 1; splitIdx < blocks.length; splitIdx++) {
               var leftBlocks = blocks.slice(0, splitIdx);
               var rightBlocks = blocks.slice(splitIdx);
 
               var leftSpanW = 0, leftSpanL = 0;
-              leftBlocks.forEach(function(b) {
+              leftBlocks.forEach(function(b, idx) {
+                if (idx > 0) leftSpanL += gutter;
                 leftSpanL += b.spanL;
                 if (b.spanW > leftSpanW) leftSpanW = b.spanW;
               });
 
               var rightSpanW = 0, rightSpanL = 0;
-              rightBlocks.forEach(function(b) {
+              rightBlocks.forEach(function(b, idx) {
+                if (idx > 0) rightSpanL += gutter;
                 rightSpanL += b.spanL;
                 if (b.spanW > rightSpanW) rightSpanW = b.spanW;
               });
@@ -478,17 +480,17 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
               var gangTotalW = leftSpanW + gangColGutter + rightSpanW;
               var gangMaxL = Math.max(leftSpanL, rightSpanL);
 
-              if (gangMaxL <= effL + 0.001 && gangTotalW <= effW + 0.001) {
+              if (gangMaxL <= usableL + 0.001 && gangTotalW <= usableW + 0.001) {
                 var placedGang = [];
                 var yL = 0;
                 leftBlocks.forEach(function(b) {
                   placedGang.push(Object.assign({}, b, { xOffset: 0, yOffset: yL }));
-                  yL += b.spanL;
+                  yL += b.spanL + gutter;
                 });
                 var yR = 0;
                 rightBlocks.forEach(function(b) {
                   placedGang.push(Object.assign({}, b, { xOffset: leftSpanW + gangColGutter, yOffset: yR }));
-                  yR += b.spanL;
+                  yR += b.spanL + gutter;
                 });
 
                 addMultiCandidate({
@@ -506,23 +508,35 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
               // Formation 4: 2-Row Split (Top Row + Bottom Row)
               var topBlocks = leftBlocks;
               var btmBlocks = rightBlocks;
-              var topSpanW = leftSpanW, topSpanL = leftSpanL;
-              var btmSpanW = rightSpanW, btmSpanL = rightSpanL;
+              var topSpanW = 0, topSpanL = 0;
+              topBlocks.forEach(function(b, idx) {
+                if (idx > 0) topSpanW += gutter;
+                topSpanW += b.spanW;
+                if (b.spanL > topSpanL) topSpanL = b.spanL;
+              });
+
+              var btmSpanW = 0, btmSpanL = 0;
+              btmBlocks.forEach(function(b, idx) {
+                if (idx > 0) btmSpanW += gutter;
+                btmSpanW += b.spanW;
+                if (b.spanL > btmSpanL) btmSpanL = b.spanL;
+              });
+
               var gangRowGutter = (topSpanL > 0 && btmSpanL > 0) ? gutter : 0;
               var gangRowTotalL = topSpanL + gangRowGutter + btmSpanL;
               var gangRowMaxW = Math.max(topSpanW, btmSpanW);
 
-              if (gangRowTotalL <= effL + 0.001 && gangRowMaxW <= effW + 0.001) {
+              if (gangRowTotalL <= usableL + 0.001 && gangRowMaxW <= usableW + 0.001) {
                 var placedGangRow = [];
                 var xT = 0;
                 topBlocks.forEach(function(b) {
                   placedGangRow.push(Object.assign({}, b, { xOffset: xT, yOffset: 0 }));
-                  xT += b.spanW;
+                  xT += b.spanW + gutter;
                 });
                 var xB = 0;
                 btmBlocks.forEach(function(b) {
                   placedGangRow.push(Object.assign({}, b, { xOffset: xB, yOffset: topSpanL + gangRowGutter }));
-                  xB += b.spanW;
+                  xB += b.spanW + gutter;
                 });
 
                 addMultiCandidate({
@@ -542,7 +556,7 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
 
         // Formation 5: Compound Band Gang (Header Band + Multi-column Footer)
         if (activeTags.length >= 2) {
-          runCompoundBandSearch(pL, pW, ni, mi, totalPieces, effL, effW, M, totalSlotsThisM);
+          runCompoundBandSearch(pL, pW, ni, mi, totalPieces, usableL, usableW, M, totalSlotsThisM);
         }
       }
     }
@@ -577,12 +591,14 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
           for (var rA = 1; rA <= slotsA; rA++) {
             if (slotsA % rA !== 0) continue;
             var numStripsA = slotsA / rA;
-            var stripH_A = rA * lA;
+            var isSharedA = !!removeSameTagBleed;
+            var stripH_A = isSharedA ? (rA * lA) : (rA * lA + (rA - 1) * gutter);
             var stripW_A = wA;
 
             for (var k2 = 1; k2 < numStripsA; k2++) {
               var k1 = numStripsA - k2;
-              var b1W = k1 * stripW_A + (k1 - 1) * gutter;
+              var colGutterA = isSharedA ? 0 : gutter;
+              var b1W = k1 * stripW_A + (k1 - 1) * colGutterA;
               var b1H = stripH_A;
 
               if (b1W > boxW + 0.001 || b1H > boxL + 0.001) continue;
@@ -609,7 +625,8 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
                       if (numStripsC !== k2) continue;
                       if (Math.abs(wA - wC) > 0.1) continue;
 
-                      var stripH_C = rC * lC;
+                      var isSharedC = !!removeSameTagBleed;
+                      var stripH_C = isSharedC ? (rC * lC) : (rC * lC + (rC - 1) * gutter);
                       var stripW_C = wC;
                       var bIdx = 3 - aIdx - cIdx;
                       var tB = activeTags[bIdx];
@@ -628,17 +645,23 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
                         for (var rB = 1; rB <= slotsB; rB++) {
                           if (slotsB % rB !== 0) continue;
                           var numStripsB = slotsB / rB;
-                          var stripH_B = rB * lB;
+                          var isSharedB = !!removeSameTagBleed;
+                          var stripH_B = isSharedB ? (rB * lB) : (rB * lB + (rB - 1) * gutter);
                           var stripW_B = wB;
 
-                          var b2W = numStripsB * stripW_B + k2 * stripW_A + (numStripsB + k2 - 1) * gutter;
+                          var colGutterB = isSharedB ? 0 : gutter;
+                          var b2W_B = numStripsB * stripW_B + (numStripsB - 1) * colGutterB;
+                          var colGutterAC = isSharedA ? 0 : gutter;
+                          var b2W_comp = k2 * stripW_A + (k2 - 1) * colGutterAC;
+                          var interB2Gutter = (numStripsB > 0 && k2 > 0) ? gutter : 0;
+                          var b2W = b2W_B + interB2Gutter + b2W_comp;
                           var colAC_H = stripH_A + gutter + stripH_C;
                           var b2H = Math.max(stripH_B, colAC_H);
 
                           var totalW = Math.max(b1W, b2W);
                           var totalH = b1H + gutter + b2H;
 
-                            if (totalW <= boxW + 0.001 && totalH <= boxL + 0.001) {
+                          if (totalW <= boxW + 0.001 && totalH <= boxL + 0.001) {
                             var placedBlocks = [];
 
                             function buildBlock(tIndex, tObj, oTag, rSlots, cSlots, sH, sW, uX, uY) {
@@ -683,23 +706,21 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
 
                             // Band 1: k1 strips of Tag A
                             for (var i1 = 0; i1 < k1; i1++) {
-                              var x1 = i1 * (stripW_A + gutter);
-                              var y1 = 0;
-                              placedBlocks.push(buildBlock(aIdx, tA, oA, rA, 1, stripH_A, stripW_A, x1, y1));
+                              var x1 = i1 * (stripW_A + colGutterA);
+                              placedBlocks.push(buildBlock(aIdx, tA, oA, rA, 1, stripH_A, stripW_A, x1, 0));
                             }
 
                             // Band 2: numStripsB strips of Tag B
                             var y_b2 = b1H + gutter;
                             for (var iB = 0; iB < numStripsB; iB++) {
-                              var xB = iB * (stripW_B + gutter);
-                              var yB = y_b2;
-                              placedBlocks.push(buildBlock(bIdx, tB, oB, rB, 1, stripH_B, stripW_B, xB, yB));
+                              var xB = iB * (stripW_B + colGutterB);
+                              placedBlocks.push(buildBlock(bIdx, tB, oB, rB, 1, stripH_B, stripW_B, xB, y_b2));
                             }
 
                             // Band 2: k2 composite columns (Tag A on top of Tag C)
-                            var x_comp = Math.max(numStripsB * (stripW_B + gutter), b1W - (k2 * stripW_A + (k2 - 1) * gutter));
+                            var x_comp = numStripsB > 0 ? (b2W_B + gutter) : 0;
                             for (var i2 = 0; i2 < k2; i2++) {
-                              var xCol = x_comp + i2 * (stripW_A + gutter);
+                              var xCol = x_comp + i2 * (stripW_A + colGutterAC);
                               placedBlocks.push(buildBlock(aIdx, tA, oA, rA, 1, stripH_A, stripW_A, xCol, y_b2));
 
                               var y_c = y_b2 + stripH_A + gutter;
@@ -744,7 +765,9 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
       }
     }
 
-    // Strict overlap validation: no two blocks/cavities may overlap
+    // Strict inter-block validation:
+    // 1. No two blocks may overlap (bounding boxes cannot collide).
+    // 2. Different tags must NEVER touch or share bleed margins; they must maintain at least gutter (2 * actualOverlap).
     for (var b1 = 0; b1 < cfg.blocks.length; b1++) {
       var bk1 = cfg.blocks[b1];
       var x1_min = bk1.xOffset;
@@ -759,9 +782,31 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
         var y2_min = bk2.yOffset;
         var y2_max = bk2.yOffset + bk2.spanL;
 
+        // Collision check
         if (x1_min < x2_max - 0.005 && x1_max > x2_min + 0.005 &&
             y1_min < y2_max - 0.005 && y1_max > y2_min + 0.005) {
           return; // Collision detected! Discard invalid layout.
+        }
+
+        // Inter-tag margin validation: different tags must have at least gutter between them
+        if (bk1.tagIndex !== bk2.tagIndex && gutter > 0.001) {
+          // If they overlap in Y (side by side in X):
+          var yOverlap = Math.min(y1_max, y2_max) - Math.max(y1_min, y2_min);
+          if (yOverlap > 0.005) {
+            var xGap = Math.max(x1_min - x2_max, x2_min - x1_max);
+            if (xGap < gutter - 0.005) {
+              return; // Insufficient margin between different tags!
+            }
+          }
+
+          // If they overlap in X (one above the other in Y):
+          var xOverlap = Math.min(x1_max, x2_max) - Math.max(x1_min, x2_min);
+          if (xOverlap > 0.005) {
+            var yGap = Math.max(y1_min - y2_max, y2_min - y1_max);
+            if (yGap < gutter - 0.005) {
+              return; // Insufficient margin between different tags!
+            }
+          }
         }
       }
     }
