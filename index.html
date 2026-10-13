@@ -326,12 +326,12 @@ function LayoutPreview(props) {
 
   var geo = React.useMemo(function() {
     if (!valid) return null;
-    var VB_W = 800, PAD_T = 44, PAD_R = 48, PAD_L = 12, PAD_B = 12;
+    var VB_W = 860, PAD_T = 44, PAD_R = 48, PAD_L = 64, PAD_B = 42;
     var cW = VB_W - PAD_L - PAD_R;
     var cH = 480 - PAD_T - PAD_B;
     var sc = Math.min(cW / dL, cH / dW);
     var shW = dL * sc, shH = dW * sc;
-    var VB_H = Math.max(260, Math.min(520, PAD_T + shH + PAD_B));
+    var VB_H = Math.max(280, Math.min(540, PAD_T + shH + PAD_B));
     cH = VB_H - PAD_T - PAD_B;
     sc = Math.min(cW / dL, cH / dW);
     shW = dL * sc; shH = dW * sc;
@@ -393,6 +393,84 @@ function LayoutPreview(props) {
   var L = { cut: true, bleed: true, safe: true, hole: true, center: true };
   var sc = geo.sc;
 
+  var pieceRowHeights = React.useMemo(function() {
+    if (!valid) return [];
+    if (props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0) {
+      return props.selectedC.strips.map(function(s) {
+        return {
+          inches: rotated ? s.L : s.W,
+          isOffcut: !!s.isOffcut,
+          tags: s.tagsPerStrip || (s.rows * s.cols)
+        };
+      });
+    }
+    return Array.from({ length: dM }).map(function() {
+      return {
+        inches: dPW,
+        isOffcut: false,
+        tags: optTagsPerPiece
+      };
+    });
+  }, [valid, props.selectedC, rotated, dM, dPW, optTagsPerPiece]);
+
+  var pieceColWidths = React.useMemo(function() {
+    if (!valid) return [];
+    if (props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0) {
+      return Array.from({ length: dN }).map(function() {
+        return {
+          inches: rotated ? props.selectedC.strips[0].W : props.selectedC.strips[0].L
+        };
+      });
+    }
+    return Array.from({ length: dN }).map(function() {
+      return {
+        inches: dPL
+      };
+    });
+  }, [valid, props.selectedC, rotated, dN, dPL]);
+
+  var pieceSummaryList = React.useMemo(function() {
+    if (!valid) return [];
+    if (props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0) {
+      var map = {};
+      props.selectedC.strips.forEach(function(s) {
+        var dimX = rotated ? s.W : s.L;
+        var dimY = rotated ? s.L : s.W;
+        var key = lpFmt(dimX) + "x" + lpFmt(dimY) + (s.isOffcut ? "_off" : "");
+        if (!map[key]) {
+          map[key] = {
+            dimText: lpFmt(dimX) + " × " + lpFmt(dimY) + '"',
+            isOffcut: !!s.isOffcut,
+            count: 0,
+            tagsPerPiece: s.tagsPerStrip || (s.rows * s.cols)
+          };
+        }
+        map[key].count += (s.count || 1);
+      });
+      return Object.keys(map).map(function(k) { return map[k]; });
+    }
+    return [{
+      dimText: lpFmt(dPL) + " × " + lpFmt(dPW) + '"',
+      isOffcut: false,
+      count: n * m,
+      tagsPerPiece: optTagsPerPiece
+    }];
+  }, [valid, props.selectedC, rotated, dPL, dPW, n, m, optTagsPerPiece]);
+
+  var totalPiecesCount = pieceSummaryList.reduce(function(sum, item) { return sum + item.count; }, 0);
+
+  var isMixedCandidate = !!(props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0);
+  var nominalLayoutSpanX = isMixedCandidate
+    ? (dN * (rotated ? props.selectedC.strips[0].W : props.selectedC.strips[0].L) * sc)
+    : (dN * pw);
+  var nominalLayoutSpanY = isMixedCandidate
+    ? (props.selectedC.strips.reduce(function(sum, s) { return sum + (rotated ? s.L : s.W); }, 0) * sc)
+    : (dM * ph);
+  var unusedX = Math.max(0, shW - nominalLayoutSpanX);
+  var unusedY = Math.max(0, shH - nominalLayoutSpanY);
+  var startOriginX = oX + unusedX / 2;
+  var startOriginY = oY + unusedY / 2;
+
   return (
     <div className="lp-shell">
       <div className="lp-title-bar">
@@ -410,6 +488,48 @@ function LayoutPreview(props) {
       </div>
       <div className="lp-main">
         <div className="lp-drawing-col">
+          {viewMode === "sheet" && (
+            <div className="lp-piece-spec-bar" style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "#182232",
+              border: "1px solid rgba(56, 189, 248, 0.3)",
+              borderRadius: 6,
+              padding: "7px 12px",
+              marginBottom: 8,
+              fontSize: 12,
+              color: "#e2e8f0",
+              gap: 10,
+              flexWrap: "wrap"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 800, color: "#38bdf8", letterSpacing: "0.5px" }}>✂️ PIECE SIZES:</span>
+                {pieceSummaryList.map(function(item, idx) {
+                  return (
+                    <span key={idx} style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      background: item.isOffcut ? "rgba(245, 158, 11, 0.15)" : "rgba(56, 189, 248, 0.12)",
+                      border: "1px solid " + (item.isOffcut ? "#f59e0b" : "#38bdf8"),
+                      color: item.isOffcut ? "#fbbf24" : "#e0f2fe",
+                      padding: "2px 8px",
+                      borderRadius: 4,
+                      fontWeight: 700,
+                      fontFamily: "'Courier New',monospace"
+                    }}>
+                      <span>{item.count} pcs × <strong>{item.dimText}</strong></span>
+                      <span style={{ fontSize: 11, opacity: 0.85, fontWeight: 600 }}>({item.tagsPerPiece} tags/pc{item.isOffcut ? " • Offcut" : ""})</span>
+                    </span>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                Total: <strong style={{ color: "#f8fafc" }}>{totalPiecesCount} pieces</strong> ({num(totalTags, 0)} tags/sheet)
+              </div>
+            </div>
+          )}
           <div className="lp-drawing">
             <svg viewBox={"0 0 " + geo.VB_W + " " + geo.VB_H} preserveAspectRatio="xMidYMid meet" className="lp-svg" role="img" aria-label="Die layout">
 
@@ -631,13 +751,10 @@ function LayoutPreview(props) {
                       pieceGroups.push(
                         <g key={"p-" + row + "-" + col}>
                           <rect x={px} y={py} width={pw} height={ph} fill="#ffffff" stroke="#888" strokeWidth={geo.swT} />
-                          {/* Piece Dimension Badge */}
-                          <g>
-                            <rect x={px + 4} y={py + 4} width={Math.min(pw - 8, Math.max(50, pieceDimText.length * 6 + 12))} height={14} rx={3} fill="#1e2430" fillOpacity="0.82" />
-                            <text x={px + 8} y={py + 14} fontSize={Math.max(6, Math.min(9, sc * 0.45))} fontWeight="700" fill="#38bdf8" fontFamily="'Courier New',monospace">
-                              {pieceDimText}
-                            </text>
-                          </g>
+                          <title>{"Piece " + (pieceIdx + 1) + ": " + pieceDimText}</title>
+                          <text x={px + 3} y={py + 7} fontSize={Math.max(5, Math.min(7, sc * 0.35))} fontWeight="700" fill="#64748b" fontFamily="'Courier New',monospace">
+                            P{pieceIdx + 1}
+                          </text>
                           {blockEls}
                         </g>
                       );
@@ -757,14 +874,11 @@ function LayoutPreview(props) {
                     var pieceDimText = lpFmt(pieceDimX) + '" × ' + lpFmt(pieceDimY) + '"' + (isOffcutPiece ? ' (Offcut)' : '');
                     pieceGroups.push(
                       <g key={"p" + row + "-" + col}>
-                        <rect x={px} y={py} width={extPw} height={extPh} fill="#ffffff" stroke="#999" strokeWidth={geo.swT} />
-                        {/* Piece Dimension Badge */}
-                        <g>
-                          <rect x={px + 4} y={py + 4} width={Math.min(extPw - 8, Math.max(50, pieceDimText.length * 6 + 14))} height={14} rx={3} fill="#1e2430" fillOpacity="0.82" />
-                          <text x={px + 8} y={py + 14} fontSize={Math.max(6, Math.min(9, sc * 0.45))} fontWeight="700" fill={isOffcutPiece ? "#fbbf24" : "#38bdf8"} fontFamily="'Courier New',monospace">
-                            {pieceDimText}
-                          </text>
-                        </g>
+                        <rect x={px} y={py} width={extPw} height={extPh} fill="#ffffff" stroke={isOffcutPiece ? "#d97706" : "#999"} strokeWidth={geo.swT} strokeDasharray={isOffcutPiece ? "3,2" : undefined} />
+                        <title>{"Piece " + pIdx + ": " + pieceDimText + " (" + totalTagsPerPiece + " tags)"}</title>
+                        <text x={px + 3} y={py + 7} fontSize={Math.max(5, Math.min(7, sc * 0.35))} fontWeight="700" fill={isOffcutPiece ? "#b45309" : "#64748b"} fontFamily="'Courier New',monospace">
+                          P{pIdx}
+                        </text>
                         {!simpleMode && <>
                         {rightStrip > 0.5 && !hasRgtRm && <rect x={lastTagEndX} y={firstTagY} width={rightStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
                         {leftStrip > 0.5 && <rect x={px} y={firstTagY} width={leftStrip} height={gridH} fill="url(#lp-hatch)" stroke="none" />}
@@ -881,23 +995,104 @@ function LayoutPreview(props) {
 
               {viewMode === "sheet" && (
                 <>
+                  {/* Top: Sheet Overall Length Dimension */}
                   <g>
                     <line x1={oX} y1={oY - 3} x2={oX} y2={dimY - eO} stroke="#444" strokeWidth={geo.swT} />
                     <line x1={oX + shW} y1={oY - 3} x2={oX + shW} y2={dimY - eO} stroke="#444" strokeWidth={geo.swT} />
                     <line x1={oX - 2} y1={dimY} x2={oX + shW + 2} y2={dimY} stroke="#444" strokeWidth={geo.swT} />
                     <polygon points={oX + "," + dimY + " " + (oX + 4) + "," + (dimY - 1.5) + " " + (oX + 4) + "," + (dimY + 1.5)} fill="#444" />
                     <polygon points={(oX + shW) + "," + dimY + " " + (oX + shW - 4) + "," + (dimY - 1.5) + " " + (oX + shW - 4) + "," + (dimY + 1.5)} fill="#444" />
-                    <text x={oX + shW / 2} y={dimY - 5} textAnchor="middle" fontSize={geo.fsD} fontWeight="600" fill="#333" fontFamily="'Courier New',monospace">{lpFmt(dL)}"</text>
+                    <text x={oX + shW / 2} y={dimY - 5} textAnchor="middle" fontSize={geo.fsD} fontWeight="600" fill="#333" fontFamily="'Courier New',monospace">Sheet: {lpFmt(dL)}"</text>
                   </g>
 
+                  {/* Right: Sheet Overall Width Dimension */}
                   <g>
                     <line x1={oX + shW + 3} y1={oY} x2={dimX + eO} y2={oY} stroke="#444" strokeWidth={geo.swT} />
                     <line x1={oX + shW + 3} y1={oY + shH} x2={dimX + eO} y2={oY + shH} stroke="#444" strokeWidth={geo.swT} />
                     <line x1={dimX} y1={oY - 2} x2={dimX} y2={oY + shH + 2} stroke="#444" strokeWidth={geo.swT} />
                     <polygon points={dimX + "," + oY + " " + (dimX - 1.5) + "," + (oY + 4) + " " + (dimX + 1.5) + "," + (oY + 4)} fill="#444" />
                     <polygon points={dimX + "," + (oY + shH) + " " + (dimX - 1.5) + "," + (oY + shH - 4) + " " + (dimX + 1.5) + "," + (oY + shH - 4)} fill="#444" />
-                    <text x={dimX + 5} y={oY + shH / 2} textAnchor="start" fontSize={geo.fsD} fontWeight="600" fill="#333" fontFamily="'Courier New',monospace" dominantBaseline="middle" transform={"rotate(90 " + (dimX + 5) + " " + (oY + shH / 2) + ")"}>{lpFmt(dW)}"</text>
+                    <text x={dimX + 5} y={oY + shH / 2} textAnchor="start" fontSize={geo.fsD} fontWeight="600" fill="#333" fontFamily="'Courier New',monospace" dominantBaseline="middle" transform={"rotate(90 " + (dimX + 5) + " " + (oY + shH / 2) + ")"}>Sheet: {lpFmt(dW)}"</text>
                   </g>
+
+                  {/* Left: Segmented Piece Row Heights Chain */}
+                  {pieceRowHeights.length > 0 && (
+                    <g className="lp-dim-chain-rows">
+                      {(() => {
+                        var dimLeftX = Math.max(10, startOriginX - 18);
+                        var cumY = startOriginY;
+                        return pieceRowHeights.map(function(rowHItem, rIdx) {
+                          var rY1 = cumY;
+                          var rH = rowHItem.inches * sc;
+                          var rY2 = rY1 + rH;
+                          cumY += rH;
+                          var midY = (rY1 + rY2) / 2;
+                          var dimColor = rowHItem.isOffcut ? "#d97706" : "#2563eb";
+
+                          return (
+                            <g key={"dim-row-" + rIdx}>
+                              {/* Extension line from piece edge to dimension line */}
+                              <line x1={startOriginX - 2} y1={rY1} x2={dimLeftX - 3} y2={rY1} stroke="#94a3b8" strokeWidth={0.7} strokeDasharray="2,2" />
+                              {rIdx === pieceRowHeights.length - 1 && (
+                                <line x1={startOriginX - 2} y1={rY2} x2={dimLeftX - 3} y2={rY2} stroke="#94a3b8" strokeWidth={0.7} strokeDasharray="2,2" />
+                              )}
+                              {/* Dimension segment */}
+                              <line x1={dimLeftX} y1={rY1} x2={dimLeftX} y2={rY2} stroke={dimColor} strokeWidth={1.2} />
+                              {/* Tick marks */}
+                              <line x1={dimLeftX - 3} y1={rY1 + 3} x2={dimLeftX + 3} y2={rY1 - 3} stroke={dimColor} strokeWidth={1.2} />
+                              <line x1={dimLeftX - 3} y1={rY2 + 3} x2={dimLeftX + 3} y2={rY2 - 3} stroke={dimColor} strokeWidth={1.2} />
+                              {/* Dimension text */}
+                              <text x={dimLeftX - 5} y={rowHItem.isOffcut ? midY - 4 : midY} textAnchor="end" dominantBaseline="central" fontSize={Math.max(6.5, Math.min(8.5, sc * 0.42))} fontWeight="700" fill={dimColor} fontFamily="'Courier New',monospace">
+                                {lpFmt(rowHItem.inches)}"
+                              </text>
+                              {rowHItem.isOffcut && (
+                                <text x={dimLeftX - 5} y={midY + 6} textAnchor="end" dominantBaseline="central" fontSize={Math.max(5.5, Math.min(7, sc * 0.35))} fontWeight="700" fill="#b45309" fontFamily="sans-serif">
+                                  ✂️ Offcut
+                                </text>
+                              )}
+                            </g>
+                          );
+                        });
+                      })()}
+                    </g>
+                  )}
+
+                  {/* Bottom: Segmented Piece Column Widths Chain */}
+                  {pieceColWidths.length > 0 && (
+                    <g className="lp-dim-chain-cols">
+                      {(() => {
+                        var dimBtmY = oY + shH + 16;
+                        var cumX = startOriginX;
+                        return pieceColWidths.map(function(colWItem, cIdx) {
+                          var cX1 = cumX;
+                          var cW = colWItem.inches * sc;
+                          var cX2 = cX1 + cW;
+                          cumX += cW;
+                          var midX = (cX1 + cX2) / 2;
+                          var dimColor = "#2563eb";
+
+                          return (
+                            <g key={"dim-col-" + cIdx}>
+                              {/* Extension line down to dimension line */}
+                              <line x1={cX1} y1={oY + shH + 2} x2={cX1} y2={dimBtmY + 4} stroke="#94a3b8" strokeWidth={0.7} strokeDasharray="2,2" />
+                              {cIdx === pieceColWidths.length - 1 && (
+                                <line x1={cX2} y1={oY + shH + 2} x2={cX2} y2={dimBtmY + 4} stroke="#94a3b8" strokeWidth={0.7} strokeDasharray="2,2" />
+                              )}
+                              {/* Dimension segment */}
+                              <line x1={cX1} y1={dimBtmY} x2={cX2} y2={dimBtmY} stroke={dimColor} strokeWidth={1.2} />
+                              {/* Tick marks */}
+                              <line x1={cX1 - 3} y1={dimBtmY + 3} x2={cX1 + 3} y2={dimBtmY - 3} stroke={dimColor} strokeWidth={1.2} />
+                              <line x1={cX2 - 3} y1={dimBtmY + 3} x2={cX2 + 3} y2={dimBtmY - 3} stroke={dimColor} strokeWidth={1.2} />
+                              {/* Dimension text */}
+                              <text x={midX} y={dimBtmY + 11} textAnchor="middle" dominantBaseline="hanging" fontSize={Math.max(6.5, Math.min(8.5, sc * 0.42))} fontWeight="700" fill={dimColor} fontFamily="'Courier New',monospace">
+                                Piece: {lpFmt(colWItem.inches)}"
+                              </text>
+                            </g>
+                          );
+                        });
+                      })()}
+                    </g>
+                  )}
                 </>
               )}
 
@@ -932,7 +1127,21 @@ function LayoutPreview(props) {
               <div className="lp-info-k"><div className="lp-info-label">Sheet</div></div>
               <div className="lp-info-kv"><span className="lp-info-k">Paper Size</span><span className="lp-info-v">{lpFmt(sL)} × {lpFmt(sW)}"</span></div>
               <div className="lp-info-kv"><span className="lp-info-k">Pieces</span><span className="lp-info-v">{props.selectedC && props.selectedC.isMixed ? props.selectedC.strips.map(function(s){return s.count;}).reduce(function(a,b){return a+b},0) : n * m}</span></div>
-              <div className="lp-info-kv"><span className="lp-info-k">Piece Size</span><span className="lp-info-v">{props.selectedC && props.selectedC.isMixed ? "Mixed Strips" : lpFmt(pL) + ' × ' + lpFmt(pW) + '"'}</span></div>
+              {props.selectedC && props.selectedC.isMixed ? (
+                <div style={{ margin: "5px 0 6px 0", padding: "6px 8px", background: "rgba(56, 189, 248, 0.06)", borderRadius: 4, border: "1px solid rgba(56, 189, 248, 0.2)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#38bdf8", marginBottom: 3 }}>Piece Sizes:</div>
+                  {pieceSummaryList.map(function(item, idx) {
+                    return (
+                      <div key={idx} style={{ fontSize: 11, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 0", color: item.isOffcut ? "#f59e0b" : "#e2e8f0" }}>
+                        <span><strong>{item.count} pcs</strong> × {item.dimText}</span>
+                        <span style={{ fontSize: 10, opacity: 0.85 }}>({item.tagsPerPiece} UP{item.isOffcut ? " • Offcut" : ""})</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="lp-info-kv"><span className="lp-info-k">Piece Size</span><span className="lp-info-v">{lpFmt(pL) + ' × ' + lpFmt(pW) + '"'}</span></div>
+              )}
               
               {props.isMultiTag && props.multiTagsList ? (<>
                 <div className="lp-info-k" style={{marginTop:"6px"}}><div className="lp-info-label">Combo Die Tags ({props.multiTagsList.length})</div></div>
