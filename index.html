@@ -1247,7 +1247,7 @@ function TagCostingCalculator() {
 
   var jobMode_state = useState("single");
   var jobMode = jobMode_state[0], setJobMode = jobMode_state[1];
-  var removeSameTagBleed_state = useState(true);
+  var removeSameTagBleed_state = useState(false);
   var removeSameTagBleed = removeSameTagBleed_state[0], setRemoveSameTagBleed = removeSameTagBleed_state[1];
   var multiTags_state = useState([
     { id: "t1", name: "Tag 1", l: 3.25, w: 3.75, qty: 866, crease: false },
@@ -2350,6 +2350,14 @@ function TagCostingCalculator() {
                 </button>
                 <button
                   type="button"
+                  className={"cad-tool-btn" + (removeSameTagBleed ? " active" : "")}
+                  onClick={function() { setRemoveSameTagBleed(function(prev) { return !prev; }); }}
+                  title={removeSameTagBleed ? "Common Cut (Zero margin between same tags) is ON — Click to turn OFF" : "Common Cut (Zero margin between same tags) is OFF — Click to turn ON"}
+                >
+                  <Scissors size={13} /> Common Cut: <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: removeSameTagBleed ? "rgba(16, 185, 129, 0.25)" : "rgba(255, 255, 255, 0.1)", color: removeSameTagBleed ? "#34d399" : "#94a3b8", fontWeight: 700 }}>{removeSameTagBleed ? "ON" : "OFF"}</span>
+                </button>
+                <button
+                  type="button"
                   className="cad-tool-btn cad-pdf-btn"
                   onClick={function() { window.print(); }}
                   title="Export / Print Die Layout PDF"
@@ -2472,23 +2480,6 @@ function TagCostingCalculator() {
                       </div>
                     );
                   })()}
-
-                  <div style={{ marginTop: -2, marginBottom: 12, padding: "10px 14px", background: removeSameTagBleed ? "rgba(46, 125, 50, 0.08)" : "rgba(0,0,0,0.03)", border: "1px solid " + (removeSameTagBleed ? "#a5d6a7" : "#e0e0e0"), borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: removeSameTagBleed ? "#2e7d32" : "#333" }}>
-                        Remove Bleed Margin Between Same Tags (Common Cut)
-                      </div>
-                      <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
-                        {removeSameTagBleed ? "Zero margin & shared knife cut between identical tags - eliminates gutters to fit more cavities on the die." : "Standard layout with full bleed gutters between all tags."}
-                      </div>
-                    </div>
-                    <Toggle
-                      checked={removeSameTagBleed}
-                      onChange={setRemoveSameTagBleed}
-                      onLabel="Active"
-                      offLabel="Off"
-                    />
-                  </div>
 
                   {multiTags.map(function(t, tIdx) {
                     var col = getMultiTagColor(tIdx);

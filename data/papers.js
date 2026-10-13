@@ -7,6 +7,7 @@ var DEFAULT_CONFIG = {
   feedOffsetW: 30,
   feedHandL: 14,
   feedHandW: 20,
+  removeSameTagBleed: false,
 };
 
 var PAPER_DEFAULTS = {
