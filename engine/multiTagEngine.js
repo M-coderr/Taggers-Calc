@@ -638,32 +638,54 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
                           var totalW = Math.max(b1W, b2W);
                           var totalH = b1H + gutter + b2H;
 
-                          if (totalW <= boxW + 0.001 && totalH <= boxL + 0.001) {
+                            if (totalW <= boxW + 0.001 && totalH <= boxL + 0.001) {
                             var placedBlocks = [];
+
+                            function buildBlock(tIndex, tObj, oTag, rSlots, cSlots, sH, sW, uX, uY) {
+                              var isSw = box.isSwapped;
+                              var origIsRot = !!oTag.isRot;
+                              var isRot = isSw ? !origIsRot : origIsRot;
+                              var bTagL = isSw ? oTag.w : oTag.l;
+                              var bTagW = isSw ? oTag.l : oTag.w;
+                              var bCutL = isSw ? (removeSameTagBleed ? oTag.w : (oTag.w + 2 * actualOverlap)) : (removeSameTagBleed ? oTag.l : (oTag.l + 2 * actualOverlap));
+                              var bCutW = isSw ? (removeSameTagBleed ? oTag.l : (oTag.l + 2 * actualOverlap)) : (removeSameTagBleed ? oTag.w : (oTag.w + 2 * actualOverlap));
+                              var bRows = isSw ? cSlots : rSlots;
+                              var bCols = isSw ? rSlots : cSlots;
+                              var bSpanL = isSw ? sW : sH;
+                              var bSpanW = isSw ? sH : sW;
+                              var bX = isSw ? uY : uX;
+                              var bY = isSw ? uX : uY;
+
+                              return {
+                                tagIndex: tIndex,
+                                tagName: tObj.name || ("Tag " + (tIndex + 1)),
+                                tagPrefix: String.fromCharCode(65 + (tIndex % 26)),
+                                tagColor: getMultiTagColor(tIndex),
+                                tagL: bTagL,
+                                tagW: bTagW,
+                                targetQty: Math.max(1, Math.round(Number(tObj.qty) || 5000)),
+                                ratioUp: tObj.ratioUp,
+                                slots: rSlots * cSlots,
+                                rows: bRows,
+                                cols: bCols,
+                                cutL: bCutL,
+                                cutW: bCutW,
+                                isRotated: isRot,
+                                spanL: bSpanL,
+                                spanW: bSpanW,
+                                xOffset: bX,
+                                yOffset: bY,
+                                count: rSlots * cSlots,
+                                sharedCut: removeSameTagBleed,
+                                crease: !!tObj.crease
+                              };
+                            }
 
                             // Band 1: k1 strips of Tag A
                             for (var i1 = 0; i1 < k1; i1++) {
                               var x1 = i1 * (stripW_A + gutter);
                               var y1 = 0;
-                              placedBlocks.push({
-                                tagIndex: aIdx,
-                                tagName: tA.name || ("Tag " + (aIdx + 1)),
-                                tagPrefix: String.fromCharCode(65 + (aIdx % 26)),
-                                tagColor: getMultiTagColor(aIdx),
-                                tagL: lA, tagW: wA,
-                                targetQty: Math.max(1, Math.round(Number(tA.qty) || 5000)),
-                                ratioUp: tA.ratioUp,
-                                slots: rA,
-                                rows: rA, cols: 1,
-                                cutL: lA, cutW: wA,
-                                isRotated: oA.isRot,
-                                spanL: stripH_A, spanW: stripW_A,
-                                xOffset: box.isSwapped ? y1 : x1,
-                                yOffset: box.isSwapped ? x1 : y1,
-                                count: rA,
-                                sharedCut: removeSameTagBleed,
-                                crease: !!tA.crease
-                              });
+                              placedBlocks.push(buildBlock(aIdx, tA, oA, rA, 1, stripH_A, stripW_A, x1, y1));
                             }
 
                             // Band 2: numStripsB strips of Tag B
@@ -671,71 +693,17 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
                             for (var iB = 0; iB < numStripsB; iB++) {
                               var xB = iB * (stripW_B + gutter);
                               var yB = y_b2;
-                              placedBlocks.push({
-                                tagIndex: bIdx,
-                                tagName: tB.name || ("Tag " + (bIdx + 1)),
-                                tagPrefix: String.fromCharCode(65 + (bIdx % 26)),
-                                tagColor: getMultiTagColor(bIdx),
-                                tagL: lB, tagW: wB,
-                                targetQty: Math.max(1, Math.round(Number(tB.qty) || 5000)),
-                                ratioUp: tB.ratioUp,
-                                slots: rB,
-                                rows: rB, cols: 1,
-                                cutL: lB, cutW: wB,
-                                isRotated: oB.isRot,
-                                spanL: stripH_B, spanW: stripW_B,
-                                xOffset: box.isSwapped ? yB : xB,
-                                yOffset: box.isSwapped ? xB : yB,
-                                count: rB,
-                                sharedCut: removeSameTagBleed,
-                                crease: !!tB.crease
-                              });
+                              placedBlocks.push(buildBlock(bIdx, tB, oB, rB, 1, stripH_B, stripW_B, xB, yB));
                             }
 
                             // Band 2: k2 composite columns (Tag A on top of Tag C)
                             var x_comp = Math.max(numStripsB * (stripW_B + gutter), b1W - (k2 * stripW_A + (k2 - 1) * gutter));
                             for (var i2 = 0; i2 < k2; i2++) {
                               var xCol = x_comp + i2 * (stripW_A + gutter);
-                              placedBlocks.push({
-                                tagIndex: aIdx,
-                                tagName: tA.name || ("Tag " + (aIdx + 1)),
-                                tagPrefix: String.fromCharCode(65 + (aIdx % 26)),
-                                tagColor: getMultiTagColor(aIdx),
-                                tagL: lA, tagW: wA,
-                                targetQty: Math.max(1, Math.round(Number(tA.qty) || 5000)),
-                                ratioUp: tA.ratioUp,
-                                slots: rA,
-                                rows: rA, cols: 1,
-                                cutL: lA, cutW: wA,
-                                isRotated: oA.isRot,
-                                spanL: stripH_A, spanW: stripW_A,
-                                xOffset: box.isSwapped ? y_b2 : xCol,
-                                yOffset: box.isSwapped ? xCol : y_b2,
-                                count: rA,
-                                sharedCut: removeSameTagBleed,
-                                crease: !!tA.crease
-                              });
+                              placedBlocks.push(buildBlock(aIdx, tA, oA, rA, 1, stripH_A, stripW_A, xCol, y_b2));
 
                               var y_c = y_b2 + stripH_A + gutter;
-                              placedBlocks.push({
-                                tagIndex: cIdx,
-                                tagName: tC.name || ("Tag " + (cIdx + 1)),
-                                tagPrefix: String.fromCharCode(65 + (cIdx % 26)),
-                                tagColor: getMultiTagColor(cIdx),
-                                tagL: lC, tagW: wC,
-                                targetQty: Math.max(1, Math.round(Number(tC.qty) || 5000)),
-                                ratioUp: tC.ratioUp,
-                                slots: rC,
-                                rows: rC, cols: 1,
-                                cutL: lC, cutW: wC,
-                                isRotated: oC.isRot,
-                                spanL: stripH_C, spanW: stripW_C,
-                                xOffset: box.isSwapped ? y_c : xCol,
-                                yOffset: box.isSwapped ? xCol : y_c,
-                                count: rC,
-                                sharedCut: removeSameTagBleed,
-                                crease: !!tC.crease
-                              });
+                              placedBlocks.push(buildBlock(cIdx, tC, oC, rC, 1, stripH_C, stripW_C, xCol, y_c));
                             }
 
                             addMultiCandidate({
@@ -764,6 +732,40 @@ function generateMultiTagLayouts(sheetL, sheetW, tagsList, overlapIn, marginIn, 
   }
 
   function addMultiCandidate(cfg) {
+    if (!cfg || !cfg.blocks || cfg.blocks.length === 0) return;
+
+    // Strict boundary validation: no block may exceed usable piece
+    var uL_max = cfg.pL + 0.01;
+    var uW_max = cfg.pW + 0.01;
+    for (var bi = 0; bi < cfg.blocks.length; bi++) {
+      var bki = cfg.blocks[bi];
+      if (bki.xOffset + bki.spanW > uW_max || bki.yOffset + bki.spanL > uL_max) {
+        return;
+      }
+    }
+
+    // Strict overlap validation: no two blocks/cavities may overlap
+    for (var b1 = 0; b1 < cfg.blocks.length; b1++) {
+      var bk1 = cfg.blocks[b1];
+      var x1_min = bk1.xOffset;
+      var x1_max = bk1.xOffset + bk1.spanW;
+      var y1_min = bk1.yOffset;
+      var y1_max = bk1.yOffset + bk1.spanL;
+
+      for (var b2 = b1 + 1; b2 < cfg.blocks.length; b2++) {
+        var bk2 = cfg.blocks[b2];
+        var x2_min = bk2.xOffset;
+        var x2_max = bk2.xOffset + bk2.spanW;
+        var y2_min = bk2.yOffset;
+        var y2_max = bk2.yOffset + bk2.spanL;
+
+        if (x1_min < x2_max - 0.005 && x1_max > x2_min + 0.005 &&
+            y1_min < y2_max - 0.005 && y1_max > y2_min + 0.005) {
+          return; // Collision detected! Discard invalid layout.
+        }
+      }
+    }
+
     var totalTagArea = 0;
     for (var i = 0; i < cfg.blocks.length; i++) {
       var bk = cfg.blocks[i];
