@@ -480,6 +480,7 @@ function generateAllLayouts(sheetL, sheetW, tagL, tagW, overlapIn, marginIn, ord
               m: axis.swap ? n : (mMain + 1),
               pieceL: primaryPieceL, pieceW: primaryPieceW,
               isMixed: true,
+              stripAxis: axis.swap ? 'W' : 'L',
               strips: strips,
               tagsRows: axis.swap ? colsMain : rMain,
               tagsCols: axis.swap ? rMain : colsMain,

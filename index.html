@@ -8,30 +8,30 @@
 </head>
 <body>
 <div id="root"></div>
-<div id="version-badge" style="position:fixed;bottom:4px;right:4px;background:#e74c3c;color:#fff;font:10px monospace;padding:2px 6px;border-radius:3px;z-index:9999;opacity:0.8">v2.3</div>
+<div id="version-badge" style="position:fixed;bottom:4px;right:4px;background:#e74c3c;color:#fff;font:10px monospace;padding:2px 6px;border-radius:3px;z-index:9999;opacity:0.8">v2.3.1</div>
 
-<script src="lib/react.min.js?v=2.3"></script>
-<script src="lib/react-dom.min.js?v=2.3"></script>
-<script src="lib/babel.min.js?v=2.3"></script>
-<script src="data/papers.js?v=2.3"></script>
-<script src="data/machines.js?v=2.3"></script>
-<script src="data/processes.js?v=2.3"></script>
-<script src="engine/layoutValidation.js?v=2.3"></script>
-<script src="engine/layoutEngine.js?v=2.3"></script>
+<script src="lib/react.min.js?v=2.3.1"></script>
+<script src="lib/react-dom.min.js?v=2.3.1"></script>
+<script src="lib/babel.min.js?v=2.3.1"></script>
+<script src="data/papers.js?v=2.3.1"></script>
+<script src="data/machines.js?v=2.3.1"></script>
+<script src="data/processes.js?v=2.3.1"></script>
+<script src="engine/layoutValidation.js?v=2.3.1"></script>
+<script src="engine/layoutEngine.js?v=2.3.1"></script>
 
-<script src="engine/layoutStrategies.js?v=2.3"></script>
-<script src="engine/layoutScore.js?v=2.3"></script>
-<script src="engine/wasteRecovery.js?v=2.3"></script>
-<script src="engine/rulesEngine.js?v=2.3"></script>
+<script src="engine/layoutStrategies.js?v=2.3.1"></script>
+<script src="engine/layoutScore.js?v=2.3.1"></script>
+<script src="engine/wasteRecovery.js?v=2.3.1"></script>
+<script src="engine/rulesEngine.js?v=2.3.1"></script>
 
-<script src="engine/optimizer.js?v=2.3"></script>
-<script src="engine/productionAnalyzer.js?v=2.3"></script>
-<script src="engine/layoutOptimizer.js?v=2.3"></script>
+<script src="engine/optimizer.js?v=2.3.1"></script>
+<script src="engine/productionAnalyzer.js?v=2.3.1"></script>
+<script src="engine/layoutOptimizer.js?v=2.3.1"></script>
 
-<script src="engine/wasteEngine.js?v=2.3"></script>
-<script src="engine/costingEngine.js?v=2.3"></script>
-<script src="engine/multiTagEngine.js?v=2.3"></script>
-<script src="engine/layoutRegressionTests.js?v=2.3"></script>
+<script src="engine/wasteEngine.js?v=2.3.1"></script>
+<script src="engine/costingEngine.js?v=2.3.1"></script>
+<script src="engine/multiTagEngine.js?v=2.3.1"></script>
+<script src="engine/layoutRegressionTests.js?v=2.3.1"></script>
 
 <script type="text/babel" data-presets="react">
 function lpFmt(v) {
@@ -449,16 +449,33 @@ function LayoutPreview(props) {
   var L = { cut: true, bleed: true, safe: true, hole: true, center: true };
   var sc = geo.sc;
 
+  var isMixedCandidate = !!(props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0);
+  var stripsAreCols = isMixedCandidate && (
+    (props.selectedC.stripAxis === 'W' && rotated) ||
+    (props.selectedC.stripAxis === 'L' && !rotated) ||
+    (!props.selectedC.stripAxis && props.selectedC.strips.length === dN && props.selectedC.strips.length !== dM)
+  );
+
   var pieceRowHeights = React.useMemo(function() {
     if (!valid) return [];
-    if (props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0) {
-      return props.selectedC.strips.map(function(s) {
-        return {
-          inches: rotated ? s.L : s.W,
-          isOffcut: !!s.isOffcut,
-          tags: s.tagsPerStrip || (s.rows * s.cols)
-        };
-      });
+    if (isMixedCandidate) {
+      if (stripsAreCols) {
+        return Array.from({ length: dM }).map(function() {
+          return {
+            inches: rotated ? props.selectedC.strips[0].L : props.selectedC.strips[0].W,
+            isOffcut: false,
+            tags: optTagsPerPiece
+          };
+        });
+      } else {
+        return props.selectedC.strips.map(function(s) {
+          return {
+            inches: rotated ? s.L : s.W,
+            isOffcut: !!s.isOffcut,
+            tags: s.tagsPerStrip || (s.rows * s.cols)
+          };
+        });
+      }
     }
     return Array.from({ length: dM }).map(function() {
       return {
@@ -467,27 +484,40 @@ function LayoutPreview(props) {
         tags: optTagsPerPiece
       };
     });
-  }, [valid, props.selectedC, rotated, dM, dPW, optTagsPerPiece]);
+  }, [valid, isMixedCandidate, stripsAreCols, props.selectedC, rotated, dM, dPW, optTagsPerPiece]);
 
   var pieceColWidths = React.useMemo(function() {
     if (!valid) return [];
-    if (props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0) {
-      return Array.from({ length: dN }).map(function() {
-        return {
-          inches: rotated ? props.selectedC.strips[0].W : props.selectedC.strips[0].L
-        };
-      });
+    if (isMixedCandidate) {
+      if (stripsAreCols) {
+        return props.selectedC.strips.map(function(s) {
+          return {
+            inches: rotated ? s.W : s.L,
+            isOffcut: !!s.isOffcut,
+            tags: s.tagsPerStrip || (s.rows * s.cols)
+          };
+        });
+      } else {
+        return Array.from({ length: dN }).map(function() {
+          return {
+            inches: rotated ? props.selectedC.strips[0].W : props.selectedC.strips[0].L,
+            isOffcut: false,
+            tags: optTagsPerPiece
+          };
+        });
+      }
     }
     return Array.from({ length: dN }).map(function() {
       return {
-        inches: dPL
+        inches: dPL,
+        isOffcut: false
       };
     });
-  }, [valid, props.selectedC, rotated, dN, dPL]);
+  }, [valid, isMixedCandidate, stripsAreCols, props.selectedC, rotated, dN, dPL, optTagsPerPiece]);
 
   var pieceSummaryList = React.useMemo(function() {
     if (!valid) return [];
-    if (props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0) {
+    if (isMixedCandidate) {
       var map = {};
       props.selectedC.strips.forEach(function(s) {
         var dimX = rotated ? s.W : s.L;
@@ -511,16 +541,19 @@ function LayoutPreview(props) {
       count: n * m,
       tagsPerPiece: optTagsPerPiece
     }];
-  }, [valid, props.selectedC, rotated, dPL, dPW, n, m, optTagsPerPiece]);
+  }, [valid, isMixedCandidate, props.selectedC, rotated, dPL, dPW, n, m, optTagsPerPiece]);
 
   var totalPiecesCount = pieceSummaryList.reduce(function(sum, item) { return sum + item.count; }, 0);
 
-  var isMixedCandidate = !!(props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0);
   var nominalLayoutSpanX = isMixedCandidate
-    ? (dN * (rotated ? props.selectedC.strips[0].W : props.selectedC.strips[0].L) * sc)
+    ? (stripsAreCols
+        ? (props.selectedC.strips.reduce(function(sum, s) { return sum + (rotated ? s.W : s.L); }, 0) * sc)
+        : (dN * (rotated ? props.selectedC.strips[0].W : props.selectedC.strips[0].L) * sc))
     : (dN * pw);
   var nominalLayoutSpanY = isMixedCandidate
-    ? (props.selectedC.strips.reduce(function(sum, s) { return sum + (rotated ? s.L : s.W); }, 0) * sc)
+    ? (stripsAreCols
+        ? (dM * (rotated ? props.selectedC.strips[0].L : props.selectedC.strips[0].W) * sc)
+        : (props.selectedC.strips.reduce(function(sum, s) { return sum + (rotated ? s.L : s.W); }, 0) * sc))
     : (dM * ph);
   var unusedX = Math.max(0, shW - nominalLayoutSpanX);
   var unusedY = Math.max(0, shH - nominalLayoutSpanY);
@@ -713,10 +746,9 @@ function LayoutPreview(props) {
                     var dieMaxX = 0, dieMaxY = 0;
                     candBlocks.forEach(function(b) {
                       var isSh = (props.removeSameTagBleed != null) ? !!props.removeSameTagBleed : !!b.sharedCut;
-                      var sW = (b.spanW != null) ? b.spanW : (b.cols * (isSh ? b.tagW : b.cutW) - (isSh ? 0 : 2 * overlap));
-                      var sL = (b.spanL != null) ? b.spanL : (b.rows * (isSh ? b.tagL : b.cutL) - (isSh ? 0 : 2 * overlap));
-                      var bSpanX = rotated ? (b.xOffset + sW) : (b.yOffset + sL);
-                      var bSpanY = rotated ? (b.yOffset + sL) : (b.xOffset + sW);
+                      var bSpanX = (rotated ? (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)) : (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)));
+                      var bSpanY = (rotated ? (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)) : (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)));
+                      if (!isSh) { bSpanX -= 2 * overlap; bSpanY -= 2 * overlap; }
                       if (bSpanX > dieMaxX) dieMaxX = bSpanX;
                       if (bSpanY > dieMaxY) dieMaxY = bSpanY;
                     });
@@ -801,10 +833,9 @@ function LayoutPreview(props) {
                   var dieMaxX = 0, dieMaxY = 0;
                   candBlocks.forEach(function(b) {
                     var isSh = (props.removeSameTagBleed != null) ? !!props.removeSameTagBleed : !!b.sharedCut;
-                    var sW = (b.spanW != null) ? b.spanW : (b.cols * (isSh ? b.tagW : b.cutW) - (isSh ? 0 : 2 * overlap));
-                    var sL = (b.spanL != null) ? b.spanL : (b.rows * (isSh ? b.tagL : b.cutL) - (isSh ? 0 : 2 * overlap));
-                    var bSpanX = rotated ? (b.xOffset + sW) : (b.yOffset + sL);
-                    var bSpanY = rotated ? (b.yOffset + sL) : (b.xOffset + sW);
+                    var bSpanX = (rotated ? (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)) : (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)));
+                    var bSpanY = (rotated ? (b.yOffset + b.rows * (isSh ? b.tagL : b.cutL)) : (b.xOffset + b.cols * (isSh ? b.tagW : b.cutW)));
+                    if (!isSh) { bSpanX -= 2 * overlap; bSpanY -= 2 * overlap; }
                     if (bSpanX > dieMaxX) dieMaxX = bSpanX;
                     if (bSpanY > dieMaxY) dieMaxY = bSpanY;
                   });
@@ -895,13 +926,23 @@ function LayoutPreview(props) {
                 // If reclaim extends a piece, we use the nominal span for the centering offset
                 // so the centered layout looks balanced even when one edge has a reclaim pocket.
                 var isMixedCandidate = !!(props.selectedC && props.selectedC.isMixed && props.selectedC.strips && props.selectedC.strips.length > 0);
-                var dM_render = isMixedCandidate ? props.selectedC.strips.length : dM;
+                var stripsAreCols = isMixedCandidate && (
+                  (props.selectedC.stripAxis === 'W' && rotated) ||
+                  (props.selectedC.stripAxis === 'L' && !rotated) ||
+                  (!props.selectedC.stripAxis && props.selectedC.strips.length === dN && props.selectedC.strips.length !== dM)
+                );
+                var numRows = isMixedCandidate ? (stripsAreCols ? dM : props.selectedC.strips.length) : dM;
+                var numCols = isMixedCandidate ? (stripsAreCols ? props.selectedC.strips.length : dN) : dN;
 
                 var nominalLayoutSpanX = isMixedCandidate
-                  ? (dN * (rotated ? props.selectedC.strips[0].W : props.selectedC.strips[0].L) * sc)
+                  ? (stripsAreCols
+                      ? (props.selectedC.strips.reduce(function(sum, s) { return sum + (rotated ? s.W : s.L); }, 0) * sc)
+                      : (dN * (rotated ? props.selectedC.strips[0].W : props.selectedC.strips[0].L) * sc))
                   : (dN * pw);
                 var nominalLayoutSpanY = isMixedCandidate
-                  ? (props.selectedC.strips.reduce(function(sum, s) { return sum + (rotated ? s.L : s.W); }, 0) * sc)
+                  ? (stripsAreCols
+                      ? (dM * (rotated ? props.selectedC.strips[0].L : props.selectedC.strips[0].W) * sc)
+                      : (props.selectedC.strips.reduce(function(sum, s) { return sum + (rotated ? s.L : s.W); }, 0) * sc))
                   : (dM * ph);
                 var unusedX = Math.max(0, shW - nominalLayoutSpanX);
                 var unusedY = Math.max(0, shH - nominalLayoutSpanY);
@@ -912,16 +953,18 @@ function LayoutPreview(props) {
                 var maxX = startOriginX;
                 var maxY = startOriginY;
 
-                Array.from({ length: dM_render }).forEach(function(_, row) {
+                Array.from({ length: numRows }).forEach(function(_, row) {
                   var currX = startOriginX;
-                  var strip = isMixedCandidate ? props.selectedC.strips[row] : null;
-                  var pieceDimX = isMixedCandidate ? (rotated ? strip.W : strip.L) : dPL;
-                  var pieceDimY = isMixedCandidate ? (rotated ? strip.L : strip.W) : dPW;
-                  var rowPh = pieceDimY * sc;
-                  var rowPw = pieceDimX * sc;
-                  var maxRowHeight = rowPh;
+                  var maxRowHeight = 0;
 
-                  Array.from({ length: dN }).forEach(function(_, col) {
+                  Array.from({ length: numCols }).forEach(function(_, col) {
+                    var strip = isMixedCandidate ? (stripsAreCols ? props.selectedC.strips[col] : props.selectedC.strips[row]) : null;
+                    var pieceDimX = isMixedCandidate ? (rotated ? strip.W : strip.L) : dPL;
+                    var pieceDimY = isMixedCandidate ? (rotated ? strip.L : strip.W) : dPW;
+                    var rowPh = pieceDimY * sc;
+                    var rowPw = pieceDimX * sc;
+                    if (rowPh > maxRowHeight) maxRowHeight = rowPh;
+
                     var px = currX;
                     var py = currY;
                     var pmCur = getPreviewMargins(pieceDimX, pieceDimY);
@@ -944,7 +987,7 @@ function LayoutPreview(props) {
 
                     var pitchX = curTw + 2 * overlapSvg;
                     var pitchY = curTh + 2 * overlapSvg;
-                    var pIdx = row * dN + col + 1;
+                    var pIdx = row * numCols + col + 1;
 
                     var usableW = pmCur.usableL * sc;
                     var usableH = pmCur.usableW * sc;
@@ -994,7 +1037,7 @@ function LayoutPreview(props) {
                     if (py + extPh > maxY) maxY = py + extPh;
 
                     var totalTagsPerPiece = isMixedCandidate ? (strip.tagsPerStrip || (curSvgTR * curSvgTC)) : (curSvgTR * curSvgTC + btmReclaimH + rgtReclaimN + (hasCornerRm ? 1 : 0));
-                    var pieceIdx = row * dN + col;
+                    var pieceIdx = row * numCols + col;
 
                     var isOffcutPiece = isMixedCandidate && strip && strip.isOffcut;
                     var pieceDimText = lpFmt(pieceDimX) + '" × ' + lpFmt(pieceDimY) + '"' + (isOffcutPiece ? ' (Offcut)' : '');
@@ -1027,10 +1070,21 @@ function LayoutPreview(props) {
                               var ty = firstTagY + tr * pitchY;
                               var baseTagCount = 0;
                               if (isMixedCandidate) {
-                                for (var si = 0; si < row; si++) {
-                                  baseTagCount += (props.selectedC.strips[si].tagsPerStrip || 0) * dN;
+                                if (stripsAreCols) {
+                                  var rowTotalTags = 0;
+                                  for (var scIdx = 0; scIdx < props.selectedC.strips.length; scIdx++) {
+                                    rowTotalTags += (props.selectedC.strips[scIdx].tagsPerStrip || 0);
+                                  }
+                                  baseTagCount = row * rowTotalTags;
+                                  for (var prevCol = 0; prevCol < col; prevCol++) {
+                                    baseTagCount += (props.selectedC.strips[prevCol].tagsPerStrip || 0);
+                                  }
+                                } else {
+                                  for (var si = 0; si < row; si++) {
+                                    baseTagCount += (props.selectedC.strips[si].tagsPerStrip || 0) * dN;
+                                  }
+                                  baseTagCount += col * totalTagsPerPiece;
                                 }
-                                baseTagCount += col * totalTagsPerPiece;
                               } else {
                                 baseTagCount = pieceIdx * totalTagsPerPiece;
                               }
@@ -1195,7 +1249,7 @@ function LayoutPreview(props) {
                           var cX2 = cX1 + cW;
                           cumX += cW;
                           var midX = (cX1 + cX2) / 2;
-                          var dimColor = "#2563eb";
+                          var dimColor = colWItem.isOffcut ? "#d97706" : "#2563eb";
 
                           return (
                             <g key={"dim-col-" + cIdx}>
@@ -1210,9 +1264,14 @@ function LayoutPreview(props) {
                               <line x1={cX1 - 3} y1={dimBtmY + 3} x2={cX1 + 3} y2={dimBtmY - 3} stroke={dimColor} strokeWidth={1.2} />
                               <line x1={cX2 - 3} y1={dimBtmY + 3} x2={cX2 + 3} y2={dimBtmY - 3} stroke={dimColor} strokeWidth={1.2} />
                               {/* Dimension text */}
-                              <text x={midX} y={dimBtmY + 12} textAnchor="middle" dominantBaseline="hanging" fontSize={Math.max(8, Math.min(11, sc * 0.52))} fontWeight="700" fill={dimColor} fontFamily="'Courier New',monospace">
-                                Piece: {lpFmt(colWItem.inches)}"
+                              <text x={midX} y={colWItem.isOffcut ? dimBtmY + 8 : dimBtmY + 12} textAnchor="middle" dominantBaseline="hanging" fontSize={Math.max(8, Math.min(11, sc * 0.52))} fontWeight="700" fill={dimColor} fontFamily="'Courier New',monospace">
+                                {lpFmt(colWItem.inches)}"
                               </text>
+                              {colWItem.isOffcut && (
+                                <text x={midX} y={dimBtmY + 20} textAnchor="middle" dominantBaseline="hanging" fontSize={Math.max(6.5, Math.min(8.5, sc * 0.4))} fontWeight="700" fill="#b45309" fontFamily="sans-serif">
+                                  ✂️ Offcut
+                                </text>
+                              )}
                             </g>
                           );
                         });
@@ -1629,7 +1688,7 @@ function SplashScreen() {
             Taggers <span>Costing</span> Studio
           </h1>
           <div className="tc-splash-badge-row">
-            <span className="tc-splash-badge tc-badge-cyan">v2.3</span>
+            <span className="tc-splash-badge tc-badge-cyan">v2.3.1</span>
             <span className="tc-splash-badge tc-badge-green">CAD Engine 2.0</span>
             <span className="tc-splash-badge tc-badge-amber">Offline Ready</span>
           </div>
